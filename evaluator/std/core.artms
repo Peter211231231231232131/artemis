@@ -70,7 +70,8 @@ set os = {
     "key_tap": fn(key) { return os_key_tap(key); },
     "exec": fn(cmd) { return os_exec(cmd); },
     "pos": fn() { return os_mouse_get_pos(); },
-    "alert": fn(title, msg) { return os_alert(title, msg); }
+    "alert": fn(title, msg) { return os_alert(title, msg); },
+    "compile": fn(script, output) { return os_compile(script, output); }
 };
 
 set http = {
