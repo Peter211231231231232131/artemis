@@ -1,0 +1,5 @@
+set greeting = "Hello from math_utils!";
+
+set sqrt_plus_one = fn(n) {
+    return math.sqrt(n) + 1;
+};

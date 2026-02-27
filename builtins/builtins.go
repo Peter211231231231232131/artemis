@@ -8,17 +8,33 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unicode/utf16"
 	"unsafe"
 )
+
+var (
+	VMConstants []object.Object
+	VMGlobals   []object.Object
+	VMGlobalsMu *sync.RWMutex
+)
+
+var RunClosureCallback func(cl *object.Closure, args []object.Object) object.Object
+
+func SetVMContext(constants []object.Object, globals []object.Object, mu *sync.RWMutex) {
+	VMConstants = constants
+	VMGlobals = globals
+	VMGlobalsMu = mu
+}
 
 //go:embed all:std
 var embeddedStd embed.FS
@@ -26,13 +42,13 @@ var embeddedStd embed.FS
 const StdBltinsFallback = `
 set help = fn() {
     out "Exon Language - Core Primitives Only";
-    out "Standard library (std/core.artms) not found.";
+    out "Standard library (std/core.xn) not found.";
 };
 `
 
 // LoadStdLib loads the standard library source code.
 func LoadStdLib() (string, error) {
-	stdPath := "std/core.xn"
+	stdPath := "builtins/std/core.xn"
 	content, err := ioutil.ReadFile(stdPath)
 	if err == nil {
 		return string(content), nil
@@ -59,6 +75,128 @@ var builtinsMap = map[string]*object.Builtin{
 				return &object.Error{Message: fmt.Sprintf("wrong number of arguments. got=%d, want=1", len(args))}
 			}
 			return &object.String{Value: string(args[0].Type())}
+		},
+	},
+	"math_sqrt": &object.Builtin{
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return &object.Error{Message: "wrong number of arguments"}
+			}
+			val := float64(0)
+			switch arg := args[0].(type) {
+			case *object.Integer:
+				val = float64(arg.Value)
+			case *object.Float:
+				val = arg.Value
+			default:
+				return &object.Error{Message: "argument to sqrt must be NUMBER"}
+			}
+			return &object.Float{Value: math.Sqrt(val)}
+		},
+	},
+	"math_pow": &object.Builtin{
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 2 {
+				return &object.Error{Message: "wrong number of arguments"}
+			}
+			base := float64(0)
+			exp := float64(0)
+			if b, ok := args[0].(*object.Integer); ok {
+				base = float64(b.Value)
+			} else if b, ok := args[0].(*object.Float); ok {
+				base = b.Value
+			}
+			if e, ok := args[1].(*object.Integer); ok {
+				exp = float64(e.Value)
+			} else if e, ok := args[1].(*object.Float); ok {
+				exp = e.Value
+			}
+			return &object.Float{Value: math.Pow(base, exp)}
+		},
+	},
+	"str_split": &object.Builtin{
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 2 {
+				return &object.Error{Message: "wrong number of arguments"}
+			}
+			s, ok1 := args[0].(*object.String)
+			sep, ok2 := args[1].(*object.String)
+			if !ok1 || !ok2 {
+				return &object.Error{Message: "arguments to split must be STRING"}
+			}
+			parts := strings.Split(s.Value, sep.Value)
+			elements := make([]object.Object, len(parts))
+			for i, p := range parts {
+				elements[i] = &object.String{Value: p}
+			}
+			return &object.Array{Elements: elements}
+		},
+	},
+	"str_contains": &object.Builtin{
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 2 {
+				return &object.Error{Message: "wrong number of arguments"}
+			}
+			s, ok1 := args[0].(*object.String)
+			sub, ok2 := args[1].(*object.String)
+			if !ok1 || !ok2 {
+				return &object.Error{Message: "arguments to contains must be STRING"}
+			}
+			if strings.Contains(s.Value, sub.Value) {
+				return TRUE
+			}
+			return FALSE
+		},
+	},
+	"http_serve": &object.Builtin{
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 2 {
+				return &object.Error{Message: "wrong number of arguments. got=" + fmt.Sprint(len(args)) + ", want=2"}
+			}
+			port, ok1 := args[0].(*object.Integer)
+			handler, ok2 := args[1].(*object.Closure)
+			if !ok1 || !ok2 {
+				return &object.Error{Message: "arguments to http_serve must be (INTEGER, FUNCTION)"}
+			}
+
+			addr := ":" + fmt.Sprint(port.Value)
+			fmt.Printf("Exon Server starting on %s...\n", addr)
+
+			server := &http.Server{Addr: addr}
+			http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+				// Create sub-VM for request
+				// We need a dummy VM or just a way to run the closure.
+				// Since we don't have a direct "RunClosure" helper, we'll implement a tiny one or use VM logic.
+
+				// Prepare request object
+				reqHash := make(map[object.HashKey]object.HashPair)
+				reqHash[(&object.String{Value: "method"}).HashKey()] = object.HashPair{Key: &object.String{Value: "method"}, Value: &object.String{Value: r.Method}}
+				reqHash[(&object.String{Value: "path"}).HashKey()] = object.HashPair{Key: &object.String{Value: "path"}, Value: &object.String{Value: r.URL.Path}}
+
+				// For simplicity, we just pass method and path for now.
+				// In a full implementation, we'd add headers, body, etc.
+
+				// Need a way to run this. We actually need a circular dependency or a helper.
+				// Let's assume we have a way to run a closure.
+
+				// Since we can't easily import 'vm' here without circular deps,
+				// we'll use a hack or a callback.
+				if RunClosureCallback == nil {
+					http.Error(w, "Server engine not initialized", 500)
+					return
+				}
+
+				res := RunClosureCallback(handler, []object.Object{&object.Hash{Pairs: reqHash}})
+				if res.Type() == object.ERROR_OBJ {
+					http.Error(w, res.Inspect(), 500)
+					return
+				}
+
+				fmt.Fprintf(w, "%s", res.Inspect())
+			})
+
+			go server.ListenAndServe()
+			return &object.String{Value: "Server running on " + addr}
 		},
 	},
 	"len": &object.Builtin{

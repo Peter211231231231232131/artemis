@@ -4,12 +4,14 @@ import (
 	"exon/builtins"
 	"exon/compiler"
 	"exon/lexer"
+	"exon/object"
 	"exon/parser"
 	"exon/repl"
 	"exon/vm"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sync"
 )
 
 var EmbeddedScript string
@@ -72,6 +74,40 @@ func main() {
 		return
 	}
 
+	bytecode := comp.Bytecode()
+	globals := make([]object.Object, vm.GlobalsSize)
+	globalsMu := &sync.RWMutex{}
+
+	// Initialize builtins with VM context
+	builtins.SetVMContext(bytecode.Constants, globals, globalsMu)
+
+	// Set up the web server callback
+	builtins.RunClosureCallback = func(cl *object.Closure, args []object.Object) object.Object {
+		// Create a temporary bytecode for this closure
+		// We use the same constants but the closure's instructions
+		subVm := vm.NewWithGlobalsState(&compiler.Bytecode{
+			Constants:    bytecode.Constants,
+			Instructions: cl.Fn.Instructions,
+		}, globals, globalsMu)
+
+		// Set up arguments and locals
+		// This part is slightly simplified manually from OpCall logic
+		frame := vm.NewFrame(cl, 0)
+		subVm.SetFrame(0, frame)
+		subVm.SetFrameIndex(1)
+
+		for i, arg := range args {
+			subVm.SetStack(i, arg)
+		}
+		subVm.SetStackPointer(cl.Fn.NumLocals)
+
+		err := subVm.Run()
+		if err != nil {
+			return &object.Error{Message: err.Error()}
+		}
+		return subVm.LastPoppedStackElem()
+	}
+
 	if disassemble {
 		fmt.Printf("Engine: Exon VM Disassembler\n")
 		fmt.Printf("Constants:\n")
@@ -82,7 +118,7 @@ func main() {
 		return
 	}
 
-	machine := vm.New(comp.Bytecode())
+	machine := vm.NewWithGlobalsState(bytecode, globals, globalsMu)
 	err = machine.Run()
 	if err != nil {
 		fmt.Printf("VM error in %s: %s\n", scriptName, err)

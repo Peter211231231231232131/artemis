@@ -5,8 +5,12 @@ import (
 	"exon/builtins"
 	"exon/code"
 	"exon/compiler"
+	"exon/lexer"
 	"exon/object"
+	"exon/parser"
 	"fmt"
+	"io/ioutil"
+	"strings"
 	"sync"
 )
 
@@ -44,6 +48,7 @@ type VM struct {
 
 	frames     []*Frame
 	frameIndex int
+	modules    map[string]*object.Hash
 }
 
 func New(bytecode *compiler.Bytecode) *VM {
@@ -63,6 +68,7 @@ func New(bytecode *compiler.Bytecode) *VM {
 
 		frames:     frames,
 		frameIndex: 1,
+		modules:    make(map[string]*object.Hash),
 	}
 }
 
@@ -78,6 +84,17 @@ func (vm *VM) currentFrame() *Frame {
 		return nil
 	}
 	return vm.frames[vm.frameIndex-1]
+}
+
+// getConstants returns the constants for the current frame.
+// If the frame's closure has its own constants (imported module), use those.
+// Otherwise, fall back to the VM's main constants.
+func (vm *VM) getConstants() []object.Object {
+	frame := vm.currentFrame()
+	if frame != nil && frame.cl.Fn.Constants != nil {
+		return frame.cl.Fn.Constants
+	}
+	return vm.constants
 }
 
 func (vm *VM) pushFrame(f *Frame) {
@@ -117,14 +134,14 @@ func (vm *VM) Run() error {
 		case code.OpConstant:
 			constIndex := binary.BigEndian.Uint16(ins[ip+1:])
 			frame.ip += 2
-			if err := vm.push(vm.constants[constIndex]); err != nil {
+			if err := vm.push(vm.getConstants()[constIndex]); err != nil {
 				return err
 			}
 
 		case code.OpString:
 			constIndex := binary.BigEndian.Uint16(ins[ip+1:])
 			frame.ip += 2
-			if err := vm.push(vm.constants[constIndex]); err != nil {
+			if err := vm.push(vm.getConstants()[constIndex]); err != nil {
 				return err
 			}
 
@@ -244,7 +261,7 @@ func (vm *VM) Run() error {
 		case code.OpMember:
 			constIndex := binary.BigEndian.Uint16(ins[ip+1:])
 			frame.ip += 2
-			memberName := vm.constants[constIndex].(*object.String).Value
+			memberName := vm.getConstants()[constIndex].(*object.String).Value
 			obj := vm.pop()
 			if err := vm.executeMemberExpression(obj, memberName); err != nil {
 				return err
@@ -395,6 +412,81 @@ func (vm *VM) Run() error {
 
 		case code.OpPop:
 			vm.pop()
+
+		case code.OpImport:
+			pathObj := vm.pop()
+			path, ok := pathObj.(*object.String)
+			if !ok {
+				return fmt.Errorf("import path must be string, got %s", pathObj.Type())
+			}
+
+			modulePath := path.Value
+			if !strings.HasSuffix(modulePath, ".xn") {
+				modulePath += ".xn"
+			}
+
+			if mod, ok := vm.modules[modulePath]; ok {
+				if err := vm.push(mod); err != nil {
+					return err
+				}
+				continue
+			}
+
+			// Load and compile
+			content, err := ioutil.ReadFile(modulePath)
+			if err != nil {
+				return fmt.Errorf("could not read import file %s: %s", modulePath, err)
+			}
+
+			// Prepend standard library so modules have access to it
+			stdSource, err := builtins.LoadStdLib()
+			if err != nil {
+				fmt.Printf("Warning: could not load stdlib for import: %v\n", err)
+			}
+			fullSource := stdSource + "\n" + string(content)
+
+			l := lexer.New(fullSource)
+			p := parser.New(l)
+			program := p.ParseProgram()
+			if len(p.Errors) != 0 {
+				return fmt.Errorf("import parse error: %v", p.Errors)
+			}
+
+			c := compiler.New()
+			err = c.Compile(program)
+			if err != nil {
+				return fmt.Errorf("import compile error: %s", err)
+			}
+
+			bytecode := c.Bytecode()
+			// Run in sub-VM
+			subVm := New(bytecode)
+			subVm.modules = vm.modules
+
+			err = subVm.Run()
+			if err != nil {
+				return fmt.Errorf("import runtime error: %s", err)
+			}
+
+			// Export all globals as a Hash
+			exportHash := &object.Hash{Pairs: make(map[object.HashKey]object.HashPair)}
+			moduleConstants := bytecode.Constants
+			for _, sym := range bytecode.SymbolTable.Symbols() {
+				if sym.Scope == compiler.GlobalScope {
+					val := subVm.globals[sym.Index]
+					if val != nil {
+						// Attach module constants to closures so they work in the main VM
+						vm.attachConstants(val, moduleConstants)
+						key := &object.String{Value: sym.Name}
+						exportHash.Pairs[key.HashKey()] = object.HashPair{Key: key, Value: val}
+					}
+				}
+			}
+
+			vm.modules[modulePath] = exportHash
+			if err := vm.push(exportHash); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -611,7 +703,7 @@ func (vm *VM) push(obj object.Object) error {
 }
 
 func (vm *VM) pushClosure(constIndex int, numFree int) error {
-	constant := vm.constants[constIndex]
+	constant := vm.getConstants()[constIndex]
 	compiledFn, ok := constant.(*object.CompiledFunction)
 	if !ok {
 		return fmt.Errorf("not a compiled function: %T", constant)
@@ -627,6 +719,29 @@ func (vm *VM) pushClosure(constIndex int, numFree int) error {
 	return vm.push(closure)
 }
 
+// attachConstants recursively attaches module constants to closures
+// so they can reference the correct constant pool when called from another VM.
+func (vm *VM) attachConstants(val object.Object, constants []object.Object) {
+	switch v := val.(type) {
+	case *object.Closure:
+		if v.Fn.Constants == nil {
+			v.Fn.Constants = constants
+		}
+		// Also attach to free variables that might be closures
+		for _, free := range v.Free {
+			vm.attachConstants(free, constants)
+		}
+	case *object.Hash:
+		for _, pair := range v.Pairs {
+			vm.attachConstants(pair.Value, constants)
+		}
+	case *object.Array:
+		for _, elem := range v.Elements {
+			vm.attachConstants(elem, constants)
+		}
+	}
+}
+
 func (vm *VM) pop() object.Object {
 	obj := vm.stack[vm.sp-1]
 	vm.sp--
@@ -635,6 +750,22 @@ func (vm *VM) pop() object.Object {
 
 func (vm *VM) LastPoppedStackElem() object.Object {
 	return vm.stack[vm.sp]
+}
+
+func (vm *VM) SetFrame(i int, f *Frame) {
+	vm.frames[i] = f
+}
+
+func (vm *VM) SetFrameIndex(i int) {
+	vm.frameIndex = i
+}
+
+func (vm *VM) SetStack(i int, obj object.Object) {
+	vm.stack[i] = obj
+}
+
+func (vm *VM) SetStackPointer(sp int) {
+	vm.sp = sp
 }
 
 func isTruthy(obj object.Object) bool {

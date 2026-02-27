@@ -45,6 +45,7 @@ const (
 	OpClosure
 	OpGetFree
 	OpSetFree
+	OpImport
 )
 
 type Definition struct {
@@ -87,6 +88,7 @@ var definitions = map[Opcode]*Definition{
 	OpClosure:       {"OpClosure", []int{2, 1}},
 	OpGetFree:       {"OpGetFree", []int{1}},
 	OpSetFree:       {"OpSetFree", []int{1}},
+	OpImport:        {"OpImport", []int{}},
 }
 
 func Lookup(op byte) (*Definition, error) {

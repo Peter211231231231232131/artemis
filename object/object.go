@@ -132,6 +132,7 @@ type CompiledFunction struct {
 	Instructions  []byte
 	NumLocals     int
 	NumParameters int
+	Constants     []Object // optional: if set, used instead of VM constants (for imported modules)
 }
 
 func (cf *CompiledFunction) Type() ObjectType { return COMPILED_FN_OBJ }

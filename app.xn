@@ -1,0 +1,25 @@
+// app.xn - Main application using multiple modules
+
+import "math_utils" as math_u;
+import "string_utils" as str_u;
+
+out "=== Exon Module System Demo ===";
+out "";
+
+// Using math_utils
+out "Math Utils:";
+set s1 = math_u.sqrt_plus_one(25);
+set s2 = math_u.sqrt_plus_one(100);
+out "  sqrt(25) + 1 = " + s1;
+out "  sqrt(100) + 1 = " + s2;
+out "";
+
+// Using string_utils
+out "String Utils:";
+set g = str_u.greet("World");
+out "  " + g;
+set r = str_u.repeat("ha", 3);
+out "  repeat(ha, 3) = " + r;
+out "";
+
+out "=== All modules loaded successfully! ===";

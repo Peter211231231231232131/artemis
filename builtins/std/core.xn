@@ -43,13 +43,17 @@ set math = {
     "max": fn(a, b) { if (a > b) { return a; } return b; },
     "min": fn(a, b) { if (a < b) { return a; } return b; },
     "random": fn(max) { return math_random(max); },
-    "pow": fn(base, exp) {
-        set res = 1;
-        for (set i = 0; i < exp; i++) {
-            res = res * base;
-        }
-        return res;
-    }
+    "sqrt": fn(n) { return math_sqrt(n); },
+    "pow": fn(base, exp) { return math_pow(base, exp); }
+};
+
+set server = {
+    "serve": fn(port, handler) { return http_serve(port, handler); }
+};
+
+set str = {
+    "split": fn(s, sep) { return str_split(s, sep); },
+    "contains": fn(s, sub) { return str_contains(s, sub); }
 };
 
 set time = {
@@ -82,11 +86,13 @@ set help = fn() {
     out "Exon Language Standard Library";
     out "================================";
     out "std: map, filter, reduce, range";
-    out "math: PI, E, abs, max, min, pow, random";
+    out "math: PI, E, abs, max, min, pow, random, sqrt";
+    out "str: split, contains";
     out "time: now, sleep";
     out "fs: read, write, remove, exists";
     out "os: move_mouse, click, key_tap, exec, pos, alert";
     out "http: get";
+    out "server: serve";
     out "json: json_encode, json_decode";
     out "concurrency: spawn";
     out "operators: >> (pipeline), ++, --";

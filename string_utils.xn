@@ -1,0 +1,19 @@
+// string_utils.xn - String utility module
+
+set repeat = fn(s, n) {
+    set result = "";
+    set i = 0;
+    while i < n {
+        result = result + s;
+        i = i + 1;
+    }
+    return result;
+};
+
+set greet = fn(name) {
+    return "Hello, " + name + "! Welcome to Exon.";
+};
+
+set to_upper_first = fn(s) {
+    return s;  // placeholder for now
+};

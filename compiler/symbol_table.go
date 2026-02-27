@@ -78,3 +78,11 @@ func (s *SymbolTable) DefineBuiltin(index int, name string) Symbol {
 	s.store[name] = symbol
 	return symbol
 }
+
+func (s *SymbolTable) Symbols() []Symbol {
+	symbols := make([]Symbol, 0, len(s.store))
+	for _, sym := range s.store {
+		symbols = append(symbols, sym)
+	}
+	return symbols
+}

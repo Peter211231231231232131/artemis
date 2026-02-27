@@ -12,7 +12,9 @@ var BuiltinNames = []string{
 	"fs_remove", "fs_exists",
 	"os_mouse_move", "os_mouse_click", "os_key_tap", "os_exec",
 	"os_mouse_get_pos", "os_alert", "os_compile", "os_keyboard_type",
-	"math_random", "http_get",
+	"math_random", "math_sqrt", "math_pow",
+	"str_split", "str_contains",
+	"http_get", "http_serve",
 	"input", "int", "str",
 	"copy", "paste",
 }

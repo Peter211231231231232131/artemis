@@ -12,6 +12,7 @@ Built with an optimized **Bytecode VM**, Exon features modern functional primiti
 - **🧩 Functional Power**: Pipeline operators (`|>`), `map`, `filter`, and `reduce`.
 - **🛠️ Automation**: Control mouse, keyboard, and screen natively.
 - **📂 Modern Tooling**: Built-in disassembler (`-d`) and standalone compiler.
+- **🎨 Editor Support**: Dedicated [VS Code Extension](../exon-vscode/) for syntax highlighting.
 
 ## 🚀 Quick Start
 
@@ -32,7 +33,7 @@ Built with an optimized **Bytecode VM**, Exon features modern functional primiti
 
 ## 📜 Example: Stateful Closures
 
-```artms
+```exon
 set makeCounter = fn() {
     set c = 0;
     return fn() {
@@ -48,7 +49,7 @@ out count(); // 2
 
 ## 📜 Example: Concurrency
 
-```artms
+```exon
 set worker = fn(id) {
     out "Worker ${id} starting...";
     sleep(1000);

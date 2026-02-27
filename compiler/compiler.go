@@ -6,6 +6,7 @@ import (
 	"exon/code"
 	"exon/object"
 	"fmt"
+	"strings"
 )
 
 type CompilationScope struct {
@@ -22,6 +23,7 @@ type Compiler struct {
 type Bytecode struct {
 	Instructions code.Instructions
 	Constants    []object.Object
+	SymbolTable  *SymbolTable
 }
 
 func New() *Compiler {
@@ -114,6 +116,36 @@ func (c *Compiler) Compile(node ast.Node) error {
 		}
 
 		c.emit(code.OpSpawn, len(node.Call.Arguments))
+
+	case *ast.ImportStatement:
+		err := c.Compile(node.Path)
+		if err != nil {
+			return err
+		}
+
+		c.emit(code.OpImport)
+
+		var name string
+		if node.Alias != nil {
+			name = node.Alias.Value
+		} else {
+			// Extract name from path if no alias
+			if str, ok := node.Path.(*ast.StringLiteral); ok {
+				name = strings.TrimSuffix(str.Value, ".xn")
+				// Handle paths like "std/math" -> "math"
+				parts := strings.Split(name, "/")
+				name = parts[len(parts)-1]
+			}
+		}
+
+		if name != "" {
+			symbol := c.symbolTable.Define(name)
+			if symbol.Scope == GlobalScope {
+				c.emit(code.OpSetGlobal, symbol.Index)
+			} else {
+				c.emit(code.OpSetLocal, symbol.Index)
+			}
+		}
 
 	case *ast.SetStatement:
 		err := c.Compile(node.Value)
@@ -424,6 +456,7 @@ func (c *Compiler) Bytecode() *Bytecode {
 	return &Bytecode{
 		Instructions: c.currentInstructions(),
 		Constants:    c.constants,
+		SymbolTable:  c.symbolTable,
 	}
 }
 

@@ -6,6 +6,6 @@
 *.dylib
 
 # Project specific
-test_*.artms
+test_*.xn
 temp.txt
-artemis.exe
+exon.exe
