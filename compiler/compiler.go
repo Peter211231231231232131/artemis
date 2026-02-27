@@ -2,8 +2,8 @@ package compiler
 
 import (
 	"artemis/ast"
+	"artemis/builtins"
 	"artemis/code"
-	"artemis/evaluator"
 	"artemis/object"
 	"fmt"
 )
@@ -26,7 +26,7 @@ type Bytecode struct {
 
 func New() *Compiler {
 	symbolTable := NewSymbolTable()
-	for i, name := range evaluator.BuiltinNames {
+	for i, name := range builtins.BuiltinNames {
 		symbolTable.DefineBuiltin(i, name)
 	}
 
@@ -40,6 +40,10 @@ func New() *Compiler {
 		scopes:      []CompilationScope{mainScope},
 		scopeIndex:  0,
 	}
+}
+
+func (c *Compiler) ResetInstructions() {
+	c.scopes[c.scopeIndex].instructions = code.Instructions{}
 }
 
 func (c *Compiler) currentInstructions() code.Instructions {

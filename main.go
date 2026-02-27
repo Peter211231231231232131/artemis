@@ -1,10 +1,9 @@
 package main
 
 import (
+	"artemis/builtins"
 	"artemis/compiler"
-	"artemis/evaluator"
 	"artemis/lexer"
-	"artemis/object"
 	"artemis/parser"
 	"artemis/repl"
 	"artemis/vm"
@@ -41,7 +40,7 @@ func main() {
 
 	// Load standard library source
 	stdSource := ""
-	stdContent, err := evaluator.LoadStdLib()
+	stdContent, err := builtins.LoadStdLib()
 	if err == nil {
 		stdSource = stdContent
 	}
@@ -73,28 +72,5 @@ func main() {
 	if err != nil {
 		fmt.Printf("VM error in %s: %s\n", scriptName, err)
 		return
-	}
-}
-
-// Keep old evaluator mode available
-func runWithEvaluator(source, scriptName string) {
-	l := lexer.New(source)
-	p := parser.New(l)
-	program := p.ParseProgram()
-
-	if len(p.Errors) > 0 {
-		fmt.Println("Syntax Errors:")
-		for _, msg := range p.Errors {
-			fmt.Println("\t" + msg)
-		}
-		return
-	}
-
-	env := object.NewEnvironment()
-	evaluator.InitEnv(env)
-	eval := evaluator.Eval(program, env)
-	if eval != nil && eval.Type() == object.ERROR_OBJ {
-		fmt.Printf("Traceback in %s:\n", scriptName)
-		fmt.Println(eval.Inspect())
 	}
 }

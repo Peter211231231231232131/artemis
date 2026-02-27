@@ -1,10 +1,11 @@
 package repl
 
 import (
-	"artemis/evaluator"
+	"artemis/compiler"
 	"artemis/lexer"
 	"artemis/object"
 	"artemis/parser"
+	"artemis/vm"
 	"bufio"
 	"fmt"
 	"io"
@@ -14,8 +15,9 @@ const PROMPT = "artemis>> "
 
 func Start(in io.Reader, out io.Writer) {
 	scanner := bufio.NewScanner(in)
-	env := object.NewEnvironment()
-	evaluator.InitEnv(env)
+
+	globals := make([]object.Object, vm.GlobalsSize)
+	comp := compiler.New()
 
 	for {
 		fmt.Fprintf(out, PROMPT)
@@ -38,9 +40,25 @@ func Start(in io.Reader, out io.Writer) {
 			continue
 		}
 
-		evaluated := evaluator.Eval(program, env)
-		if evaluated != nil {
-			io.WriteString(out, evaluated.Inspect())
+		comp.ResetInstructions()
+		err := comp.Compile(program)
+		if err != nil {
+			fmt.Fprintf(out, "Compiler error: %s\n", err)
+			continue
+		}
+
+		bytecode := comp.Bytecode()
+
+		machine := vm.NewWithGlobalsState(bytecode, globals)
+		err = machine.Run()
+		if err != nil {
+			fmt.Fprintf(out, "VM error: %s\n", err)
+			continue
+		}
+
+		stackTop := machine.LastPoppedStackElem()
+		if stackTop != nil {
+			io.WriteString(out, stackTop.Inspect())
 			io.WriteString(out, "\n")
 		}
 	}

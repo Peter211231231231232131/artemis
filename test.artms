@@ -1,4 +1,0 @@
-set name = input("Name: ");
-set age = int(input("Age: "));
-
-out "Hello ${name}, in five years you will be ${age + 5}!";

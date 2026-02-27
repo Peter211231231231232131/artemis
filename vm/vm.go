@@ -1,9 +1,9 @@
 package vm
 
 import (
+	"artemis/builtins"
 	"artemis/code"
 	"artemis/compiler"
-	"artemis/evaluator"
 	"artemis/object"
 	"encoding/binary"
 	"fmt"
@@ -60,6 +60,12 @@ func New(bytecode *compiler.Bytecode) *VM {
 		frames:     frames,
 		frameIndex: 1,
 	}
+}
+
+func NewWithGlobalsState(bytecode *compiler.Bytecode, globals []object.Object) *VM {
+	vm := New(bytecode)
+	vm.globals = globals
+	return vm
 }
 
 func (vm *VM) currentFrame() *Frame {
@@ -183,7 +189,7 @@ func (vm *VM) Run() error {
 		case code.OpGetBuiltin:
 			builtinIndex := int(ins[ip+1])
 			vm.currentFrame().ip += 1
-			builtin := evaluator.GetBuiltinByIndex(builtinIndex)
+			builtin := builtins.GetBuiltinByIndex(builtinIndex)
 			if builtin == nil {
 				return fmt.Errorf("builtin function not found at index %d", builtinIndex)
 			}

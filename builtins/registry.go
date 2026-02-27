@@ -1,9 +1,8 @@
-package evaluator
+package builtins
 
 import "artemis/object"
 
 // BuiltinNames returns all builtin function names in a stable order.
-// This order is critical for the compiler to match names to indices.
 var BuiltinNames = []string{
 	"type", "len", "push", "first", "last", "pop",
 	"readFile", "writeFile",
@@ -20,7 +19,7 @@ var BuiltinNames = []string{
 
 // GetBuiltinByName returns a builtin function by name.
 func GetBuiltinByName(name string) *object.Builtin {
-	b, ok := builtins[name]
+	b, ok := builtinsMap[name]
 	if !ok {
 		return nil
 	}
