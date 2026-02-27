@@ -1,9 +1,8 @@
-
-// Artemis Utils Module
+// Exon Utils Module
 // Top-level functions for easy importing
 
 set greet = fn(name) {
-    out "Hello, ${name}! High five from Artemis Utils.";
+    out "Hello, ${name}! High five from Exon Utils.";
 };
 
 set square = fn(x) {
