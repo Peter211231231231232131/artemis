@@ -1,0 +1,11 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Project specific
+test_*.artms
+temp.txt
+artemis.exe

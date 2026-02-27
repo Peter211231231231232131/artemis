@@ -1,0 +1,18 @@
+
+// Artemis Utils Module
+// Top-level functions for easy importing
+
+set greet = fn(name) {
+    out "Hello, ${name}! High five from Artemis Utils.";
+};
+
+set square = fn(x) {
+    return x * x;
+};
+
+set abs_diff = fn(a, b) {
+    if (a > b) { return a - b; }
+    return b - a;
+};
+
+out "Utils module loaded successfully.";

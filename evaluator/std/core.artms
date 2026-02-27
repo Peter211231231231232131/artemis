@@ -1,0 +1,103 @@
+
+// Artemis Core Standard Library
+// This file is loaded automatically on startup.
+
+set map = fn(arr, f) {
+    set result = [];
+    for (set i = 0; i < arr.len(); i++) {
+        result.push(f(arr[i]));
+    }
+    return result;
+};
+
+set filter = fn(arr, f) {
+    set result = [];
+    for (set i = 0; i < arr.len(); i++) {
+        if (f(arr[i])) {
+            result.push(arr[i]);
+        }
+    }
+    return result;
+};
+
+set reduce = fn(arr, initial, f) {
+    set acc = initial;
+    for (set i = 0; i < arr.len(); i++) {
+        acc = f(acc, arr[i]);
+    }
+    return acc;
+};
+
+set range = fn(start, end) {
+    set result = [];
+    for (set i = start; i < end; i++) {
+        result.push(i);
+    }
+    return result;
+};
+
+set math = {
+    "PI": 3.141592653589793,
+    "E": 2.718281828459045,
+    "abs": fn(n) { if (n < 0) { return -n; } return n; },
+    "max": fn(a, b) { if (a > b) { return a; } return b; },
+    "min": fn(a, b) { if (a < b) { return a; } return b; },
+    "random": fn(max) { return math_random(max); },
+    "pow": fn(base, exp) {
+        set res = 1;
+        for (set i = 0; i < exp; i++) {
+            res = res * base;
+        }
+        return res;
+    }
+};
+
+set time = {
+    "now": fn() { return now(); },
+    "sleep": fn(ms) { sleep(ms); }
+};
+
+set fs = {
+    "remove": fn(path) { return fs_remove(path); },
+    "exists": fn(path) { return fs_exists(path); },
+    "read": fn(path) { return readFile(path); },
+    "write": fn(path, data) { return writeFile(path, data); }
+};
+
+set os = {
+    "move_mouse": fn(x, y) { return os_mouse_move(x, y); },
+    "click": fn() { return os_mouse_click(); },
+    "key_tap": fn(key) { return os_key_tap(key); },
+    "exec": fn(cmd) { return os_exec(cmd); },
+    "pos": fn() { return os_mouse_get_pos(); },
+    "alert": fn(title, msg) { return os_alert(title, msg); }
+};
+
+set http = {
+    "get": fn(url) { return http_get(url); }
+};
+
+set help = fn() {
+    out "Artemis Language Standard Library";
+    out "================================";
+    out "std: map, filter, reduce, range";
+    out "math: PI, E, abs, max, min, pow, random";
+    out "time: now, sleep";
+    out "fs: read, write, remove, exists";
+    out "os: move_mouse, click, key_tap, exec, pos, alert";
+    out "http: get";
+    out "json: json_encode, json_decode";
+    out "concurrency: spawn";
+    out "operators: >> (pipeline), ++, --";
+    out "error handling: try, catch, throw";
+    out "keywords: set, =, match, for, while, if, out, spawn, try";
+    out "global: input, int, str, copy, paste, type";
+};
+
+set benchmark = fn(f) {
+    out "Benchmarking function...";
+    set start = time.now();
+    f();
+    set end = time.now();
+    out "Done. Execution time: ${end - start}ms";
+};
