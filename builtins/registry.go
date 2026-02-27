@@ -1,6 +1,6 @@
 package builtins
 
-import "artemis/object"
+import "exon/object"
 
 // BuiltinNames returns all builtin function names in a stable order.
 var BuiltinNames = []string{

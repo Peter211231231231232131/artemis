@@ -1,22 +1,24 @@
 package repl
 
 import (
-	"artemis/compiler"
-	"artemis/lexer"
-	"artemis/object"
-	"artemis/parser"
-	"artemis/vm"
 	"bufio"
+	"exon/compiler"
+	"exon/lexer"
+	"exon/object"
+	"exon/parser"
+	"exon/vm"
 	"fmt"
 	"io"
+	"sync"
 )
 
-const PROMPT = "artemis>> "
+const PROMPT = "exon>> "
 
 func Start(in io.Reader, out io.Writer) {
 	scanner := bufio.NewScanner(in)
 
 	globals := make([]object.Object, vm.GlobalsSize)
+	globalsMu := &sync.RWMutex{}
 	comp := compiler.New()
 
 	for {
@@ -49,7 +51,7 @@ func Start(in io.Reader, out io.Writer) {
 
 		bytecode := comp.Bytecode()
 
-		machine := vm.NewWithGlobalsState(bytecode, globals)
+		machine := vm.NewWithGlobalsState(bytecode, globals, globalsMu)
 		err = machine.Run()
 		if err != nil {
 			fmt.Fprintf(out, "VM error: %s\n", err)

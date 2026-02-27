@@ -1,12 +1,13 @@
 package vm
 
 import (
-	"artemis/builtins"
-	"artemis/code"
-	"artemis/compiler"
-	"artemis/object"
 	"encoding/binary"
+	"exon/builtins"
+	"exon/code"
+	"exon/compiler"
+	"exon/object"
 	"fmt"
+	"sync"
 )
 
 const (
@@ -16,29 +17,30 @@ const (
 )
 
 type Frame struct {
-	fn          *object.CompiledFunction
+	cl          *object.Closure
 	ip          int
 	basePointer int
 }
 
-func NewFrame(fn *object.CompiledFunction, basePointer int) *Frame {
+func NewFrame(cl *object.Closure, basePointer int) *Frame {
 	return &Frame{
-		fn:          fn,
+		cl:          cl,
 		ip:          -1,
 		basePointer: basePointer,
 	}
 }
 
 func (f *Frame) Instructions() code.Instructions {
-	return f.fn.Instructions
+	return f.cl.Fn.Instructions
 }
 
 type VM struct {
 	constants []object.Object
 
-	stack   []object.Object
-	sp      int
-	globals []object.Object
+	stack     []object.Object
+	sp        int
+	globals   []object.Object
+	globalsMu *sync.RWMutex
 
 	frames     []*Frame
 	frameIndex int
@@ -46,7 +48,8 @@ type VM struct {
 
 func New(bytecode *compiler.Bytecode) *VM {
 	mainFn := &object.CompiledFunction{Instructions: bytecode.Instructions}
-	mainFrame := NewFrame(mainFn, 0)
+	mainClosure := &object.Closure{Fn: mainFn}
+	mainFrame := NewFrame(mainClosure, 0)
 
 	frames := make([]*Frame, MaxFrames)
 	frames[0] = mainFrame
@@ -56,19 +59,24 @@ func New(bytecode *compiler.Bytecode) *VM {
 		stack:     make([]object.Object, StackSize),
 		sp:        0,
 		globals:   make([]object.Object, GlobalsSize),
+		globalsMu: &sync.RWMutex{},
 
 		frames:     frames,
 		frameIndex: 1,
 	}
 }
 
-func NewWithGlobalsState(bytecode *compiler.Bytecode, globals []object.Object) *VM {
+func NewWithGlobalsState(bytecode *compiler.Bytecode, globals []object.Object, mu *sync.RWMutex) *VM {
 	vm := New(bytecode)
 	vm.globals = globals
+	vm.globalsMu = mu
 	return vm
 }
 
 func (vm *VM) currentFrame() *Frame {
+	if vm.frameIndex <= 0 {
+		return nil
+	}
 	return vm.frames[vm.frameIndex-1]
 }
 
@@ -94,24 +102,28 @@ func (vm *VM) Run() error {
 	var ins code.Instructions
 	var op code.Opcode
 
-	for vm.currentFrame().ip < len(vm.currentFrame().Instructions())-1 {
-		vm.currentFrame().ip++
+	for vm.frameIndex > 0 {
+		frame := vm.currentFrame()
+		if frame.ip >= len(frame.Instructions())-1 {
+			break
+		}
+		frame.ip++
 
-		ip = vm.currentFrame().ip
-		ins = vm.currentFrame().Instructions()
+		ip = frame.ip
+		ins = frame.Instructions()
 		op = code.Opcode(ins[ip])
 
 		switch op {
 		case code.OpConstant:
 			constIndex := binary.BigEndian.Uint16(ins[ip+1:])
-			vm.currentFrame().ip += 2
+			frame.ip += 2
 			if err := vm.push(vm.constants[constIndex]); err != nil {
 				return err
 			}
 
 		case code.OpString:
 			constIndex := binary.BigEndian.Uint16(ins[ip+1:])
-			vm.currentFrame().ip += 2
+			frame.ip += 2
 			if err := vm.push(vm.constants[constIndex]); err != nil {
 				return err
 			}
@@ -162,33 +174,37 @@ func (vm *VM) Run() error {
 
 		case code.OpGetGlobal:
 			globalIndex := binary.BigEndian.Uint16(ins[ip+1:])
-			vm.currentFrame().ip += 2
-			if err := vm.push(vm.globals[globalIndex]); err != nil {
+			frame.ip += 2
+			vm.globalsMu.RLock()
+			val := vm.globals[globalIndex]
+			vm.globalsMu.RUnlock()
+			if err := vm.push(val); err != nil {
 				return err
 			}
 
 		case code.OpSetGlobal:
 			globalIndex := binary.BigEndian.Uint16(ins[ip+1:])
-			vm.currentFrame().ip += 2
-			vm.globals[globalIndex] = vm.pop()
+			frame.ip += 2
+			val := vm.pop()
+			vm.globalsMu.Lock()
+			vm.globals[globalIndex] = val
+			vm.globalsMu.Unlock()
 
 		case code.OpGetLocal:
 			localIndex := int(ins[ip+1])
-			vm.currentFrame().ip += 1
-			frame := vm.currentFrame()
+			frame.ip += 1
 			if err := vm.push(vm.stack[frame.basePointer+localIndex]); err != nil {
 				return err
 			}
 
 		case code.OpSetLocal:
 			localIndex := int(ins[ip+1])
-			vm.currentFrame().ip += 1
-			frame := vm.currentFrame()
+			frame.ip += 1
 			vm.stack[frame.basePointer+localIndex] = vm.pop()
 
 		case code.OpGetBuiltin:
 			builtinIndex := int(ins[ip+1])
-			vm.currentFrame().ip += 1
+			frame.ip += 1
 			builtin := builtins.GetBuiltinByIndex(builtinIndex)
 			if builtin == nil {
 				return fmt.Errorf("builtin function not found at index %d", builtinIndex)
@@ -199,7 +215,7 @@ func (vm *VM) Run() error {
 
 		case code.OpArray:
 			numElements := int(binary.BigEndian.Uint16(ins[ip+1:]))
-			vm.currentFrame().ip += 2
+			frame.ip += 2
 			array := vm.buildArray(vm.sp-numElements, vm.sp)
 			vm.sp = vm.sp - numElements
 			if err := vm.push(array); err != nil {
@@ -208,7 +224,7 @@ func (vm *VM) Run() error {
 
 		case code.OpHash:
 			numElements := int(binary.BigEndian.Uint16(ins[ip+1:]))
-			vm.currentFrame().ip += 2
+			frame.ip += 2
 			hash, err := vm.buildHash(vm.sp-numElements, vm.sp)
 			if err != nil {
 				return err
@@ -227,7 +243,7 @@ func (vm *VM) Run() error {
 
 		case code.OpMember:
 			constIndex := binary.BigEndian.Uint16(ins[ip+1:])
-			vm.currentFrame().ip += 2
+			frame.ip += 2
 			memberName := vm.constants[constIndex].(*object.String).Value
 			obj := vm.pop()
 			if err := vm.executeMemberExpression(obj, memberName); err != nil {
@@ -240,7 +256,7 @@ func (vm *VM) Run() error {
 
 		case code.OpJumpNotTruthy:
 			pos := int(binary.BigEndian.Uint16(ins[ip+1:]))
-			vm.currentFrame().ip += 2
+			frame.ip += 2
 			condition := vm.pop()
 			if !isTruthy(condition) {
 				vm.currentFrame().ip = pos - 1
@@ -248,22 +264,22 @@ func (vm *VM) Run() error {
 
 		case code.OpCall:
 			numArgs := int(ins[ip+1])
-			vm.currentFrame().ip += 1
+			frame.ip += 1
 			callee := vm.stack[vm.sp-1-numArgs]
 
-			switch fn := callee.(type) {
-			case *object.CompiledFunction:
-				if numArgs != fn.NumParameters {
+			switch cl := callee.(type) {
+			case *object.Closure:
+				if numArgs != cl.Fn.NumParameters {
 					return fmt.Errorf("wrong number of arguments: want=%d, got=%d",
-						fn.NumParameters, numArgs)
+						cl.Fn.NumParameters, numArgs)
 				}
-				frame := NewFrame(fn, vm.sp-numArgs)
+				frame := NewFrame(cl, vm.sp-numArgs)
 				vm.pushFrame(frame)
-				vm.sp = frame.basePointer + fn.NumLocals
+				vm.sp = frame.basePointer + cl.Fn.NumLocals
 
 			case *object.Builtin:
 				args := vm.stack[vm.sp-numArgs : vm.sp]
-				result := fn.Fn(args...)
+				result := cl.Fn(args...)
 				vm.sp = vm.sp - numArgs - 1
 				if result != nil {
 					vm.push(result)
@@ -275,9 +291,91 @@ func (vm *VM) Run() error {
 				return fmt.Errorf("calling non-function: %s", callee.Type())
 			}
 
+		case code.OpSpawn:
+			numArgs := int(ins[ip+1])
+			frame.ip += 1
+
+			args := make([]object.Object, numArgs)
+			for i := numArgs - 1; i >= 0; i-- {
+				args[i] = vm.pop()
+			}
+
+			target := vm.pop()
+			var cl *object.Closure
+
+			switch t := target.(type) {
+			case *object.Closure:
+				cl = t
+			case *object.CompiledFunction:
+				cl = &object.Closure{Fn: t}
+			default:
+				return fmt.Errorf("spawn target must be a function, got %s", target.Type())
+			}
+
+			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						fmt.Printf("Recovered in spawn goroutine: %v\n", r)
+					}
+				}()
+				subVm := &VM{
+					constants:  vm.constants,
+					globals:    vm.globals,
+					globalsMu:  vm.globalsMu,
+					stack:      make([]object.Object, StackSize),
+					sp:         0,
+					frames:     make([]*Frame, MaxFrames),
+					frameIndex: 1,
+				}
+
+				newFrame := NewFrame(cl, 0)
+				subVm.frames[0] = newFrame
+
+				for i, arg := range args {
+					subVm.stack[i] = arg
+				}
+				subVm.sp = cl.Fn.NumLocals
+
+				err := subVm.Run()
+				if err != nil {
+					fmt.Printf("Sub-VM error: %s\n", err)
+				}
+			}()
+
+		case code.OpClosure:
+			constIndex := binary.BigEndian.Uint16(ins[ip+1:])
+			numFree := int(ins[ip+3])
+			frame.ip += 3
+
+			err := vm.pushClosure(int(constIndex), numFree)
+			if err != nil {
+				return err
+			}
+
+		case code.OpGetFree:
+			freeIndex := int(ins[ip+1])
+			frame.ip += 1
+
+			err := vm.push(frame.cl.Free[freeIndex])
+			if err != nil {
+				return err
+			}
+
+		case code.OpSetFree:
+			freeIndex := int(ins[ip+1])
+			frame.ip += 1
+
+			val := vm.pop()
+			frame.cl.Free[freeIndex] = val
+
 		case code.OpReturnValue:
 			returnValue := vm.pop()
 			frame := vm.popFrame()
+			if vm.frameIndex == 0 {
+				vm.sp = 0
+				vm.push(returnValue)
+				return nil
+			}
 			vm.sp = frame.basePointer - 1
 			if err := vm.push(returnValue); err != nil {
 				return err
@@ -285,6 +383,11 @@ func (vm *VM) Run() error {
 
 		case code.OpReturn:
 			frame := vm.popFrame()
+			if vm.frameIndex == 0 {
+				vm.sp = 0
+				vm.push(&object.Null{})
+				return nil
+			}
 			vm.sp = frame.basePointer - 1
 			if err := vm.push(&object.Null{}); err != nil {
 				return err
@@ -505,6 +608,23 @@ func (vm *VM) push(obj object.Object) error {
 	vm.stack[vm.sp] = obj
 	vm.sp++
 	return nil
+}
+
+func (vm *VM) pushClosure(constIndex int, numFree int) error {
+	constant := vm.constants[constIndex]
+	compiledFn, ok := constant.(*object.CompiledFunction)
+	if !ok {
+		return fmt.Errorf("not a compiled function: %T", constant)
+	}
+
+	free := make([]object.Object, numFree)
+	for i := 0; i < numFree; i++ {
+		free[i] = vm.stack[vm.sp-numFree+i]
+	}
+	vm.sp -= numFree
+
+	closure := &object.Closure{Fn: compiledFn, Free: free}
+	return vm.push(closure)
 }
 
 func (vm *VM) pop() object.Object {

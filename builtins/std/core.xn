@@ -1,5 +1,5 @@
 
-// Artemis Core Standard Library
+// Exon Core Standard Library
 // This file is loaded automatically on startup.
 
 set map = fn(arr, f) {
@@ -79,7 +79,7 @@ set http = {
 };
 
 set help = fn() {
-    out "Artemis Language Standard Library";
+    out "Exon Language Standard Library";
     out "================================";
     out "std: map, filter, reduce, range";
     out "math: PI, E, abs, max, min, pow, random";

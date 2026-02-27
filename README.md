@@ -1,60 +1,72 @@
-# 🏹 Artemis Language
+# 🧬 Exon Language
 
-Artemis is a high-level, interpreted scripting language designed for **automation, visual sensing, and rapid system scripting**. 
+Exon is a high-performance, concurrent scripting language designed for **automation, systems programming, and rapid tool development**. 
+
+Built with an optimized **Bytecode VM**, Exon features modern functional primitives, first-class closures, and native multi-threading.
 
 ## ✨ Features
 
-- **🚀 Performance**: Fast tree-walking interpreter written in Go.
-- **👁️ Visual Sensing**: Read screen pixels and colors natively (`os.pixel`).
-- **🖱️ Automation**: Control mouse and keyboard with simple commands.
-- **🌐 Networking**: Built-in HTTP client for web automation.
-- **📂 Self-Hosting**: Standard library written in Artemis itself (`std/core.artms`).
-- **🧩 Modern Syntax**: Pipeline operators (`>>`), pattern matching, and string interpolation.
+- **🚀 High Performance**: Optimized Bytecode VM written in Go.
+- **🧵 Concurrency**: Native `spawn` keyword for effortless multi-threading.
+- **🔒 Stateful Closures**: Capture and mutate lexical variables with ease.
+- **🧩 Functional Power**: Pipeline operators (`|>`), `map`, `filter`, and `reduce`.
+- **🛠️ Automation**: Control mouse, keyboard, and screen natively.
+- **📂 Modern Tooling**: Built-in disassembler (`-d`) and standalone compiler.
 
 ## 🚀 Quick Start
 
 1. **Build from source**:
    ```bash
-   go build -o artemis.exe main.go
+   go build -o xn.exe main.go
    ```
 
 2. **Run a script**:
    ```bash
-   ./artemis.exe my_script.artms
+   ./xn.exe script.xn
    ```
 
 3. **Interactive Mode (REPL)**:
    ```bash
-   ./artemis.exe
+   ./xn.exe
    ```
 
-## 📜 Example Code
+## 📜 Example: Stateful Closures
 
 ```artms
-// Smart Automation Example
-set target_color = "#FF0000";
+set makeCounter = fn() {
+    set c = 0;
+    return fn() {
+        c = c + 1;
+        return c;
+    };
+};
 
-if (os.pixel(100, 100) == target_color) {
-    os.move_mouse(100, 100);
-    os.click();
-    out "Operation Successful!";
-}
+set count = makeCounter();
+out count(); // 1
+out count(); // 2
+```
+
+## 📜 Example: Concurrency
+
+```artms
+set worker = fn(id) {
+    out "Worker ${id} starting...";
+    sleep(1000);
+    out "Worker ${id} finished.";
+};
+
+spawn worker(1);
+spawn worker(2);
+out "Main thread continuing...";
 ```
 
 ## 🛠️ Built-in Modules
 
-- `std`: Arrays, Functional primitives (map, filter).
-- `os`: Mouse, Keyboard, Alerts, Pixels.
-- `fs`: File reading and writing.
-- `http`: Web requests.
-- `str`: String manipulation.
-- `math`: Randomness and math constants.
-
-## 📦 Project Structure
-
-- `lexer/`, `parser/`, `ast/`: Core language implementation.
-- `evaluator/`: Interpreter logic and system built-ins.
-- `evaluator/std/`: The Artemis standard library (embedded in the binary).
+- `std`: Arrays, Functional primitives.
+- `os`: Automation (Mouse, Keyboard, Alerts).
+- `fs`: File System operations.
+- `http`: Native Web requests.
+- `json`: Seamless JSON encoding/decoding.
 
 ---
-*Created with Artemis. Happy Scripting!*
+*Created with 🧬 Exon. Happy Scripting!*

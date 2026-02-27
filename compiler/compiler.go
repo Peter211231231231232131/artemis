@@ -1,10 +1,10 @@
 package compiler
 
 import (
-	"artemis/ast"
-	"artemis/builtins"
-	"artemis/code"
-	"artemis/object"
+	"exon/ast"
+	"exon/builtins"
+	"exon/code"
+	"exon/object"
 	"fmt"
 )
 
@@ -100,6 +100,21 @@ func (c *Compiler) Compile(node ast.Node) error {
 		}
 		c.emit(code.OpReturnValue)
 
+	case *ast.SpawnStatement:
+		err := c.Compile(node.Call.Function)
+		if err != nil {
+			return err
+		}
+
+		for _, arg := range node.Call.Arguments {
+			err := c.Compile(arg)
+			if err != nil {
+				return err
+			}
+		}
+
+		c.emit(code.OpSpawn, len(node.Call.Arguments))
+
 	case *ast.SetStatement:
 		err := c.Compile(node.Value)
 		if err != nil {
@@ -108,8 +123,10 @@ func (c *Compiler) Compile(node ast.Node) error {
 		symbol := c.symbolTable.Define(node.Name.Value)
 		if symbol.Scope == GlobalScope {
 			c.emit(code.OpSetGlobal, symbol.Index)
-		} else {
+		} else if symbol.Scope == LocalScope {
 			c.emit(code.OpSetLocal, symbol.Index)
+		} else if symbol.Scope == FreeScope {
+			c.emit(code.OpSetFree, symbol.Index)
 		}
 
 	case *ast.AssignStatement:
@@ -123,8 +140,10 @@ func (c *Compiler) Compile(node ast.Node) error {
 		}
 		if symbol.Scope == GlobalScope {
 			c.emit(code.OpSetGlobal, symbol.Index)
-		} else {
+		} else if symbol.Scope == LocalScope {
 			c.emit(code.OpSetLocal, symbol.Index)
+		} else if symbol.Scope == FreeScope {
+			c.emit(code.OpSetFree, symbol.Index)
 		}
 
 	case *ast.InfixExpression:
@@ -294,14 +313,21 @@ func (c *Compiler) Compile(node ast.Node) error {
 		}
 
 		numLocals := c.symbolTable.numDefinitions
+		freeSymbols := c.symbolTable.FreeSymbols
 		instructions := c.leaveScope()
+
+		for _, s := range freeSymbols {
+			c.loadSymbol(s)
+		}
 
 		compiledFn := &object.CompiledFunction{
 			Instructions:  instructions,
 			NumLocals:     numLocals,
 			NumParameters: len(node.Parameters),
 		}
-		c.emit(code.OpConstant, c.addConstant(compiledFn))
+
+		fnIndex := c.addConstant(compiledFn)
+		c.emit(code.OpClosure, fnIndex, len(freeSymbols))
 
 	case *ast.CallExpression:
 		err := c.Compile(node.Function)
@@ -389,6 +415,8 @@ func (c *Compiler) loadSymbol(s Symbol) {
 		c.emit(code.OpGetLocal, s.Index)
 	case BuiltinScope:
 		c.emit(code.OpGetBuiltin, s.Index)
+	case FreeScope:
+		c.emit(code.OpGetFree, s.Index)
 	}
 }
 

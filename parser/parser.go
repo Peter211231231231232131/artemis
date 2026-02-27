@@ -1,9 +1,9 @@
 package parser
 
 import (
-	"artemis/ast"
-	"artemis/lexer"
-	"artemis/token"
+	"exon/ast"
+	"exon/lexer"
+	"exon/token"
 	"fmt"
 	"strconv"
 	"strings"

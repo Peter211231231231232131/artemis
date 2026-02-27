@@ -1,10 +1,10 @@
 package builtins
 
 import (
-	"artemis/object"
 	"bufio"
 	"embed"
 	"encoding/json"
+	"exon/object"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -25,14 +25,14 @@ var embeddedStd embed.FS
 
 const StdBltinsFallback = `
 set help = fn() {
-    out "Artemis Language - Core Primitives Only";
+    out "Exon Language - Core Primitives Only";
     out "Standard library (std/core.artms) not found.";
 };
 `
 
 // LoadStdLib loads the standard library source code.
 func LoadStdLib() (string, error) {
-	stdPath := "std/core.artms"
+	stdPath := "std/core.xn"
 	content, err := ioutil.ReadFile(stdPath)
 	if err == nil {
 		return string(content), nil

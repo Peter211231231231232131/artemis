@@ -1,12 +1,12 @@
 package main
 
 import (
-	"artemis/builtins"
-	"artemis/compiler"
-	"artemis/lexer"
-	"artemis/parser"
-	"artemis/repl"
-	"artemis/vm"
+	"exon/builtins"
+	"exon/compiler"
+	"exon/lexer"
+	"exon/parser"
+	"exon/repl"
+	"exon/vm"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -19,12 +19,17 @@ func main() {
 	var scriptName string
 
 	args := os.Args[1:]
+	disassemble := false
+	if len(args) > 0 && args[0] == "-d" {
+		disassemble = true
+		args = args[1:]
+	}
 
 	if EmbeddedScript != "" {
 		source = EmbeddedScript
 		scriptName = "embedded"
 	} else if len(args) < 1 {
-		fmt.Println("Artemis Language REPL")
+		fmt.Println("Exon Language REPL")
 		fmt.Println("Type your code below. Press Ctrl+C to exit.")
 		repl.Start(os.Stdin, os.Stdout)
 		return
@@ -64,6 +69,16 @@ func main() {
 	err = comp.Compile(program)
 	if err != nil {
 		fmt.Printf("Compiler error: %s\n", err)
+		return
+	}
+
+	if disassemble {
+		fmt.Printf("Engine: Exon VM Disassembler\n")
+		fmt.Printf("Constants:\n")
+		for i, constant := range comp.Bytecode().Constants {
+			fmt.Printf("  %d: %s\n", i, constant.Inspect())
+		}
+		fmt.Printf("\nInstructions:\n%s", comp.Bytecode().Instructions.String())
 		return
 	}
 

@@ -1,6 +1,6 @@
 package lexer
 
-import "artemis/token"
+import "exon/token"
 
 type Lexer struct {
 	input        string

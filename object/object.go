@@ -1,8 +1,8 @@
 package object
 
 import (
-	"artemis/ast"
 	"bytes"
+	"exon/ast"
 	"fmt"
 	"hash/fnv"
 	"strings"
@@ -25,6 +25,7 @@ const (
 	HASH_OBJ         = "HASH"
 	MODULE_OBJ       = "MODULE"
 	COMPILED_FN_OBJ  = "COMPILED_FUNCTION"
+	CLOSURE_OBJ      = "CLOSURE"
 )
 
 type Object interface {
@@ -225,4 +226,14 @@ func (e *Environment) Update(name string, val Object) bool {
 		return e.outer.Update(name, val)
 	}
 	return false
+}
+
+type Closure struct {
+	Fn   *CompiledFunction
+	Free []Object
+}
+
+func (c *Closure) Type() ObjectType { return CLOSURE_OBJ }
+func (c *Closure) Inspect() string {
+	return fmt.Sprintf("Closure[%p]", c)
 }

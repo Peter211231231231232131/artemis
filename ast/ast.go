@@ -1,8 +1,8 @@
 package ast
 
 import (
-	"artemis/token"
 	"bytes"
+	"exon/token"
 	"strings"
 )
 
