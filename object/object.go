@@ -24,6 +24,7 @@ const (
 	BUILTIN_OBJ      = "BUILTIN"
 	HASH_OBJ         = "HASH"
 	MODULE_OBJ       = "MODULE"
+	COMPILED_FN_OBJ  = "COMPILED_FUNCTION"
 )
 
 type Object interface {
@@ -125,6 +126,15 @@ func (f *Function) Inspect() string {
 	out.WriteString("\n}")
 	return out.String()
 }
+
+type CompiledFunction struct {
+	Instructions  []byte
+	NumLocals     int
+	NumParameters int
+}
+
+func (cf *CompiledFunction) Type() ObjectType { return COMPILED_FN_OBJ }
+func (cf *CompiledFunction) Inspect() string  { return fmt.Sprintf("CompiledFunction[%p]", cf) }
 
 type Array struct{ Elements []Object }
 
