@@ -3,6 +3,7 @@ package compiler
 import (
 	"artemis/ast"
 	"artemis/code"
+	"artemis/evaluator"
 	"artemis/object"
 	"fmt"
 )
@@ -24,13 +25,18 @@ type Bytecode struct {
 }
 
 func New() *Compiler {
+	symbolTable := NewSymbolTable()
+	for i, name := range evaluator.BuiltinNames {
+		symbolTable.DefineBuiltin(i, name)
+	}
+
 	mainScope := CompilationScope{
 		instructions: code.Instructions{},
 	}
 
 	return &Compiler{
 		constants:   []object.Object{},
-		symbolTable: NewSymbolTable(),
+		symbolTable: symbolTable,
 		scopes:      []CompilationScope{mainScope},
 		scopeIndex:  0,
 	}
@@ -162,13 +168,47 @@ func (c *Compiler) Compile(node ast.Node) error {
 			return fmt.Errorf("unknown operator %s", node.Operator)
 		}
 
+	case *ast.PrefixExpression:
+		err := c.Compile(node.Right)
+		if err != nil {
+			return err
+		}
+		switch node.Operator {
+		case "!":
+			c.emit(code.OpBang)
+		case "-":
+			c.emit(code.OpMinus)
+		default:
+			return fmt.Errorf("unknown prefix operator %s", node.Operator)
+		}
+
 	case *ast.IntegerLiteral:
 		integer := &object.Integer{Value: node.Value}
 		c.emit(code.OpConstant, c.addConstant(integer))
 
+	case *ast.FloatLiteral:
+		fl := &object.Float{Value: node.Value}
+		c.emit(code.OpConstant, c.addConstant(fl))
+
 	case *ast.StringLiteral:
 		str := &object.String{Value: node.Value}
 		c.emit(code.OpString, c.addConstant(str))
+
+	case *ast.InterpolatedString:
+		// Compile each part and concatenate with +
+		if len(node.Parts) == 0 {
+			c.emit(code.OpString, c.addConstant(&object.String{Value: ""}))
+			return nil
+		}
+		for i, part := range node.Parts {
+			err := c.Compile(part)
+			if err != nil {
+				return err
+			}
+			if i > 0 {
+				c.emit(code.OpAdd)
+			}
+		}
 
 	case *ast.Boolean:
 		if node.Value {
@@ -177,16 +217,59 @@ func (c *Compiler) Compile(node ast.Node) error {
 			c.emit(code.OpFalse)
 		}
 
+	case *ast.ArrayLiteral:
+		for _, el := range node.Elements {
+			err := c.Compile(el)
+			if err != nil {
+				return err
+			}
+		}
+		c.emit(code.OpArray, len(node.Elements))
+
+	case *ast.HashLiteral:
+		keys := []ast.Expression{}
+		vals := []ast.Expression{}
+		for k, v := range node.Pairs {
+			keys = append(keys, k)
+			vals = append(vals, v)
+		}
+		for i := 0; i < len(keys); i++ {
+			err := c.Compile(keys[i])
+			if err != nil {
+				return err
+			}
+			err = c.Compile(vals[i])
+			if err != nil {
+				return err
+			}
+		}
+		c.emit(code.OpHash, len(keys)*2)
+
+	case *ast.IndexExpression:
+		err := c.Compile(node.Left)
+		if err != nil {
+			return err
+		}
+		err = c.Compile(node.Index)
+		if err != nil {
+			return err
+		}
+		c.emit(code.OpIndex)
+
+	case *ast.MemberExpression:
+		err := c.Compile(node.Object)
+		if err != nil {
+			return err
+		}
+		memberStr := &object.String{Value: node.Member.Value}
+		c.emit(code.OpMember, c.addConstant(memberStr))
+
 	case *ast.Identifier:
 		symbol, ok := c.symbolTable.Resolve(node.Value)
 		if !ok {
 			return fmt.Errorf("undefined variable %s", node.Value)
 		}
-		if symbol.Scope == GlobalScope {
-			c.emit(code.OpGetGlobal, symbol.Index)
-		} else {
-			c.emit(code.OpGetLocal, symbol.Index)
-		}
+		c.loadSymbol(symbol)
 
 	case *ast.FunctionLiteral:
 		c.enterScope()
@@ -237,7 +320,6 @@ func (c *Compiler) Compile(node ast.Node) error {
 			return err
 		}
 
-		// Emit OpJumpNotTruthy with placeholder
 		jumpNotTruthyPos := c.emit(code.OpJumpNotTruthy, 9999)
 
 		err = c.Compile(node.Consequence)
@@ -249,7 +331,6 @@ func (c *Compiler) Compile(node ast.Node) error {
 			afterConsequencePos := len(c.currentInstructions())
 			c.changeOperand(jumpNotTruthyPos, afterConsequencePos)
 		} else {
-			// Emit OpJump with placeholder to skip else
 			jumpPos := c.emit(code.OpJump, 9999)
 
 			afterConsequencePos := len(c.currentInstructions())
@@ -272,7 +353,6 @@ func (c *Compiler) Compile(node ast.Node) error {
 			return err
 		}
 
-		// Emit OpJumpNotTruthy with placeholder
 		jumpNotTruthyPos := c.emit(code.OpJumpNotTruthy, 9999)
 
 		err = c.Compile(node.Body)
@@ -280,7 +360,6 @@ func (c *Compiler) Compile(node ast.Node) error {
 			return err
 		}
 
-		// Emit OpJump to go back to condition
 		c.emit(code.OpJump, beforeLoopPos)
 
 		afterBodyPos := len(c.currentInstructions())
@@ -296,6 +375,17 @@ func (c *Compiler) Compile(node ast.Node) error {
 	}
 
 	return nil
+}
+
+func (c *Compiler) loadSymbol(s Symbol) {
+	switch s.Scope {
+	case GlobalScope:
+		c.emit(code.OpGetGlobal, s.Index)
+	case LocalScope:
+		c.emit(code.OpGetLocal, s.Index)
+	case BuiltinScope:
+		c.emit(code.OpGetBuiltin, s.Index)
+	}
 }
 
 func (c *Compiler) Bytecode() *Bytecode {

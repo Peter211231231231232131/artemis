@@ -34,6 +34,21 @@ set help = fn() {
 };
 `
 
+// LoadStdLib loads the standard library source code.
+func LoadStdLib() (string, error) {
+	stdPath := "std/core.artms"
+	content, err := ioutil.ReadFile(stdPath)
+	if err == nil {
+		return string(content), nil
+	}
+	// Fallback to embedded
+	embeddedContent, err := embeddedStd.ReadFile(stdPath)
+	if err == nil {
+		return string(embeddedContent), nil
+	}
+	return StdBltinsFallback, nil
+}
+
 func InitEnv(env *object.Environment) {
 	// Try to load core library from disk first, then from embedded FS
 	stdPath := "std/core.artms"

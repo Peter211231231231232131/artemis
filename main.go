@@ -18,13 +18,8 @@ var EmbeddedScript string
 func main() {
 	var source string
 	var scriptName string
-	var useVM bool
 
 	args := os.Args[1:]
-	if len(args) > 0 && args[0] == "-vm" {
-		useVM = true
-		args = args[1:]
-	}
 
 	if EmbeddedScript != "" {
 		source = EmbeddedScript
@@ -44,7 +39,17 @@ func main() {
 		scriptName = args[0]
 	}
 
-	l := lexer.New(source)
+	// Load standard library source
+	stdSource := ""
+	stdContent, err := evaluator.LoadStdLib()
+	if err == nil {
+		stdSource = stdContent
+	}
+
+	// Combine std + user source
+	fullSource := stdSource + "\n" + source
+
+	l := lexer.New(fullSource)
 	p := parser.New(l)
 	program := p.ParseProgram()
 
@@ -56,19 +61,31 @@ func main() {
 		return
 	}
 
-	if useVM {
-		comp := compiler.New()
-		err := comp.Compile(program)
-		if err != nil {
-			fmt.Printf("Compiler error: %s\n", err)
-			return
-		}
+	comp := compiler.New()
+	err = comp.Compile(program)
+	if err != nil {
+		fmt.Printf("Compiler error: %s\n", err)
+		return
+	}
 
-		machine := vm.New(comp.Bytecode())
-		err = machine.Run()
-		if err != nil {
-			fmt.Printf("VM error: %s\n", err)
-			return
+	machine := vm.New(comp.Bytecode())
+	err = machine.Run()
+	if err != nil {
+		fmt.Printf("VM error in %s: %s\n", scriptName, err)
+		return
+	}
+}
+
+// Keep old evaluator mode available
+func runWithEvaluator(source, scriptName string) {
+	l := lexer.New(source)
+	p := parser.New(l)
+	program := p.ParseProgram()
+
+	if len(p.Errors) > 0 {
+		fmt.Println("Syntax Errors:")
+		for _, msg := range p.Errors {
+			fmt.Println("\t" + msg)
 		}
 		return
 	}
