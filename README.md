@@ -16,7 +16,27 @@ Built with an optimized **Bytecode VM**, Exon features modern functional primiti
 
 ## 🚀 Quick Start
 
-1. **Build from source**:
+### Install (add to PATH)
+
+**Windows (PowerShell):**
+```powershell
+.\install.ps1
+```
+Installs `xn.exe` to `%LOCALAPPDATA%\Exon` and adds it to your user PATH. Use a new terminal, then run `xn` or `xn script.xn`.
+
+Custom install directory:
+```powershell
+.\install.ps1 -InstallDir "C:\Tools\Exon"
+```
+
+Uninstall:
+```powershell
+.\install.ps1 -Uninstall
+```
+
+### Build from source
+
+1. **Build**:
    ```bash
    go build -o xn.exe main.go
    ```

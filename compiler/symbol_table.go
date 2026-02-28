@@ -10,9 +10,10 @@ const (
 )
 
 type Symbol struct {
-	Name  string
-	Scope SymbolScope
-	Index int
+	Name    string
+	Scope   SymbolScope
+	Index   int
+	IsConst bool
 }
 
 type SymbolTable struct {
@@ -34,7 +35,15 @@ func NewEnclosedSymbolTable(outer *SymbolTable) *SymbolTable {
 }
 
 func (s *SymbolTable) Define(name string) Symbol {
-	symbol := Symbol{Name: name, Index: s.numDefinitions}
+	return s.define(name, false)
+}
+
+func (s *SymbolTable) DefineConst(name string) Symbol {
+	return s.define(name, true)
+}
+
+func (s *SymbolTable) define(name string, isConst bool) Symbol {
+	symbol := Symbol{Name: name, Index: s.numDefinitions, IsConst: isConst}
 	if s.Outer == nil {
 		symbol.Scope = GlobalScope
 	} else {
@@ -66,9 +75,7 @@ func (s *SymbolTable) Resolve(name string) (Symbol, bool) {
 func (s *SymbolTable) defineFree(original Symbol) Symbol {
 	s.FreeSymbols = append(s.FreeSymbols, original)
 
-	symbol := Symbol{Name: original.Name, Index: len(s.FreeSymbols) - 1}
-	symbol.Scope = FreeScope
-
+	symbol := Symbol{Name: original.Name, Index: len(s.FreeSymbols) - 1, Scope: FreeScope, IsConst: original.IsConst}
 	s.store[original.Name] = symbol
 	return symbol
 }

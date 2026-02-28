@@ -11,8 +11,17 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 	"sync"
 )
+
+// normalizeScriptSource strips UTF-8 BOM and normalizes line endings to \n
+// so that scripts parse the same whether saved with CRLF or LF.
+func normalizeScriptSource(s string) string {
+	const utf8BOM = "\xef\xbb\xbf"
+	s = strings.TrimPrefix(s, utf8BOM)
+	return strings.ReplaceAll(s, "\r\n", "\n")
+}
 
 var EmbeddedScript string
 
@@ -41,7 +50,7 @@ func main() {
 			fmt.Println("Error reading file:", err)
 			return
 		}
-		source = string(input)
+		source = normalizeScriptSource(string(input))
 		scriptName = args[0]
 	}
 
@@ -49,7 +58,7 @@ func main() {
 	stdSource := ""
 	stdContent, err := builtins.LoadStdLib()
 	if err == nil {
-		stdSource = stdContent
+		stdSource = normalizeScriptSource(stdContent)
 	}
 
 	// Combine std + user source

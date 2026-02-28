@@ -15,7 +15,7 @@ var BuiltinNames = []string{
 	"math_random", "math_sqrt", "math_pow",
 	"str_split", "str_contains",
 	"http_get", "http_serve",
-	"input", "int", "str",
+	"input", "int", "float", "str", "bool", "typeof",
 	"copy", "paste",
 }
 

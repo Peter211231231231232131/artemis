@@ -10,6 +10,7 @@ import (
 	"exon/parser"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"strings"
 	"sync"
 )
@@ -46,9 +47,10 @@ type VM struct {
 	globals   []object.Object
 	globalsMu *sync.RWMutex
 
-	frames     []*Frame
-	frameIndex int
-	modules    map[string]*object.Hash
+	frames        []*Frame
+	frameIndex    int
+	modules       map[string]*object.Hash
+	catchHandlers []int
 }
 
 func New(bytecode *compiler.Bytecode) *VM {
@@ -60,15 +62,15 @@ func New(bytecode *compiler.Bytecode) *VM {
 	frames[0] = mainFrame
 
 	return &VM{
-		constants: bytecode.Constants,
-		stack:     make([]object.Object, StackSize),
-		sp:        0,
-		globals:   make([]object.Object, GlobalsSize),
-		globalsMu: &sync.RWMutex{},
-
-		frames:     frames,
-		frameIndex: 1,
-		modules:    make(map[string]*object.Hash),
+		constants:      bytecode.Constants,
+		stack:          make([]object.Object, StackSize),
+		sp:             0,
+		globals:        make([]object.Object, GlobalsSize),
+		globalsMu:       &sync.RWMutex{},
+		frames:         frames,
+		frameIndex:     1,
+		modules:        make(map[string]*object.Hash),
+		catchHandlers:  make([]int, 0, 8),
 	}
 }
 
@@ -168,6 +170,16 @@ func (vm *VM) Run() error {
 				vm.push(&object.Boolean{Value: false})
 			} else {
 				vm.push(&object.Boolean{Value: true})
+			}
+
+		case code.OpBitNot:
+			operand := vm.pop()
+			obj, ok := operand.(*object.Integer)
+			if !ok {
+				return fmt.Errorf("bitwise NOT requires integer, got %s", operand.Type())
+			}
+			if err := vm.push(&object.Integer{Value: ^obj.Value}); err != nil {
+				return err
 			}
 
 		case code.OpTrue:
@@ -278,6 +290,45 @@ func (vm *VM) Run() error {
 			if !isTruthy(condition) {
 				vm.currentFrame().ip = pos - 1
 			}
+
+		case code.OpJumpTruthy:
+			pos := int(binary.BigEndian.Uint16(ins[ip+1:]))
+			frame.ip += 2
+			condition := vm.StackTop()
+			if isTruthy(condition) {
+				vm.currentFrame().ip = pos - 1
+			}
+
+		case code.OpDup:
+			if vm.sp == 0 {
+				return fmt.Errorf("stack empty for OpDup")
+			}
+			vm.push(vm.stack[vm.sp-1])
+
+		case code.OpCatch:
+			pos := int(binary.BigEndian.Uint16(ins[ip+1:]))
+			frame.ip += 2
+			vm.catchHandlers = append(vm.catchHandlers, pos)
+
+		case code.OpThrow:
+			if vm.sp == 0 {
+				return fmt.Errorf("throw with empty stack")
+			}
+			if len(vm.catchHandlers) == 0 {
+				errObj := vm.pop()
+				return fmt.Errorf("uncaught throw: %s", errObj.Inspect())
+			}
+			thrown := vm.pop()
+			handlerPos := vm.catchHandlers[len(vm.catchHandlers)-1]
+			vm.catchHandlers = vm.catchHandlers[:len(vm.catchHandlers)-1]
+			vm.push(thrown)
+			vm.currentFrame().ip = handlerPos - 1
+
+		case code.OpEndCatch:
+			if len(vm.catchHandlers) == 0 {
+				return fmt.Errorf("OpEndCatch without OpCatch")
+			}
+			vm.catchHandlers = vm.catchHandlers[:len(vm.catchHandlers)-1]
 
 		case code.OpCall:
 			numArgs := int(ins[ip+1])
@@ -531,6 +582,11 @@ func (vm *VM) executeBinaryOperation(op code.Opcode) error {
 			return vm.push(&object.Float{Value: leftF * rightF})
 		case code.OpDiv:
 			return vm.push(&object.Float{Value: leftF / rightF})
+		case code.OpMod:
+			if rightF == 0 {
+				return fmt.Errorf("modulo by zero")
+			}
+			return vm.push(&object.Float{Value: math.Mod(leftF, rightF)})
 		case code.OpGreaterThan:
 			return vm.push(nativeBoolToObj(leftF > rightF))
 		case code.OpEqual:
@@ -580,12 +636,27 @@ func (vm *VM) executeIntegerBinaryOp(op code.Opcode, left, right int64) error {
 		return vm.push(&object.Integer{Value: left * right})
 	case code.OpDiv:
 		return vm.push(&object.Integer{Value: left / right})
+	case code.OpMod:
+		if right == 0 {
+			return fmt.Errorf("modulo by zero")
+		}
+		return vm.push(&object.Integer{Value: left % right})
 	case code.OpGreaterThan:
 		return vm.push(nativeBoolToObj(left > right))
 	case code.OpEqual:
 		return vm.push(nativeBoolToObj(left == right))
 	case code.OpNotEqual:
 		return vm.push(nativeBoolToObj(left != right))
+	case code.OpBitAnd:
+		return vm.push(&object.Integer{Value: left & right})
+	case code.OpBitOr:
+		return vm.push(&object.Integer{Value: left | right})
+	case code.OpBitXor:
+		return vm.push(&object.Integer{Value: left ^ right})
+	case code.OpLshift:
+		return vm.push(&object.Integer{Value: left << uint(right&63)})
+	case code.OpRshift:
+		return vm.push(&object.Integer{Value: left >> uint(right&63)})
 	default:
 		return fmt.Errorf("unknown integer operator: %d", op)
 	}

@@ -68,6 +68,23 @@ var (
 	stdinScanner = bufio.NewScanner(os.Stdin)
 )
 
+func isTruthyBuiltin(obj object.Object) bool {
+	if obj == NULL {
+		return false
+	}
+	if b, ok := obj.(*object.Boolean); ok {
+		return b.Value
+	}
+	return true
+}
+
+func boolToObj(b bool) object.Object {
+	if b {
+		return TRUE
+	}
+	return FALSE
+}
+
 var builtinsMap = map[string]*object.Builtin{
 	"type": &object.Builtin{
 		Fn: func(args ...object.Object) object.Object {
@@ -584,6 +601,8 @@ var builtinsMap = map[string]*object.Builtin{
 			switch arg := args[0].(type) {
 			case *object.Integer:
 				return arg
+			case *object.Float:
+				return &object.Integer{Value: int64(arg.Value)}
 			case *object.String:
 				cleanVal := strings.TrimSpace(arg.Value)
 				val, err := strconv.ParseInt(cleanVal, 0, 64)
@@ -594,6 +613,44 @@ var builtinsMap = map[string]*object.Builtin{
 			default:
 				return &object.Error{Message: "cannot convert to integer"}
 			}
+		},
+	},
+	"float": &object.Builtin{
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return &object.Error{Message: "wrong number of arguments"}
+			}
+			switch arg := args[0].(type) {
+			case *object.Integer:
+				return &object.Float{Value: float64(arg.Value)}
+			case *object.Float:
+				return arg
+			case *object.String:
+				cleanVal := strings.TrimSpace(arg.Value)
+				val, err := strconv.ParseFloat(cleanVal, 64)
+				if err != nil {
+					return &object.Error{Message: fmt.Sprintf("could not parse string '%s' as float: %v", cleanVal, err)}
+				}
+				return &object.Float{Value: val}
+			default:
+				return &object.Error{Message: "cannot convert to float"}
+			}
+		},
+	},
+	"bool": &object.Builtin{
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return &object.Error{Message: "wrong number of arguments"}
+			}
+			return boolToObj(isTruthyBuiltin(args[0]))
+		},
+	},
+	"typeof": &object.Builtin{
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return &object.Error{Message: fmt.Sprintf("wrong number of arguments. got=%d, want=1", len(args))}
+			}
+			return &object.String{Value: string(args[0].Type())}
 		},
 	},
 	"str": &object.Builtin{

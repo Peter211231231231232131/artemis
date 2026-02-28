@@ -28,7 +28,8 @@ const (
 	NOT_EQ = "!="
 	AND    = "&&"
 	OR     = "||"
-	PIPE   = ">>"
+	PIPE   = "|>"
+	RSHIFT = ">>"
 
 	COMMA     = ","
 	SEMICOLON = ";"
@@ -45,7 +46,6 @@ const (
 	SET    = "SET"
 	OUT    = "OUT"
 	IF     = "IF"
-	THEN   = "THEN"
 	ELSE   = "ELSE"
 	FOR    = "FOR"
 	WHILE  = "WHILE"
@@ -60,13 +60,22 @@ const (
 	THROW  = "THROW"
 	TRUE   = "TRUE"
 	FALSE  = "FALSE"
+	BREAK  = "BREAK"
+	CONTINUE = "CONTINUE"
+	IN     = "IN"
+	CONST  = "CONST"
+
+	BITAND  = "&"
+	BITOR   = "|"
+	BITXOR  = "^"
+	BITNOT  = "~"
+	LSHIFT  = "<<"
 )
 
 var keywords = map[string]TokenType{
 	"set":    SET,
 	"out":    OUT,
 	"if":     IF,
-	"then":   THEN, // Keeping THEN for backwards compatibility
 	"else":   ELSE,
 	"for":    FOR,
 	"while":  WHILE,
@@ -81,6 +90,10 @@ var keywords = map[string]TokenType{
 	"throw":  THROW,
 	"true":   TRUE,
 	"false":  FALSE,
+	"break":  BREAK,
+	"continue": CONTINUE,
+	"in":     IN,
+	"const":  CONST,
 }
 
 type Token struct {

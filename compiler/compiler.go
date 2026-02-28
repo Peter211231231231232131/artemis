@@ -13,11 +13,18 @@ type CompilationScope struct {
 	instructions code.Instructions
 }
 
+type loopContext struct {
+	startPos        int
+	breakPatches    []int
+	continuePatches []int
+}
+
 type Compiler struct {
 	constants   []object.Object
 	symbolTable *SymbolTable
 	scopes      []CompilationScope
 	scopeIndex  int
+	loopStack   []loopContext
 }
 
 type Bytecode struct {
@@ -152,7 +159,12 @@ func (c *Compiler) Compile(node ast.Node) error {
 		if err != nil {
 			return err
 		}
-		symbol := c.symbolTable.Define(node.Name.Value)
+		var symbol Symbol
+		if node.IsConst {
+			symbol = c.symbolTable.DefineConst(node.Name.Value)
+		} else {
+			symbol = c.symbolTable.Define(node.Name.Value)
+		}
 		if symbol.Scope == GlobalScope {
 			c.emit(code.OpSetGlobal, symbol.Index)
 		} else if symbol.Scope == LocalScope {
@@ -160,6 +172,13 @@ func (c *Compiler) Compile(node ast.Node) error {
 		} else if symbol.Scope == FreeScope {
 			c.emit(code.OpSetFree, symbol.Index)
 		}
+
+	case *ast.ThrowStatement:
+		err := c.Compile(node.Value)
+		if err != nil {
+			return err
+		}
+		c.emit(code.OpThrow)
 
 	case *ast.AssignStatement:
 		err := c.Compile(node.Value)
@@ -169,6 +188,9 @@ func (c *Compiler) Compile(node ast.Node) error {
 		symbol, ok := c.symbolTable.Resolve(node.Name.Value)
 		if !ok {
 			return fmt.Errorf("undefined variable %s", node.Name.Value)
+		}
+		if symbol.IsConst {
+			return fmt.Errorf("cannot assign to constant %s", node.Name.Value)
 		}
 		if symbol.Scope == GlobalScope {
 			c.emit(code.OpSetGlobal, symbol.Index)
@@ -193,6 +215,32 @@ func (c *Compiler) Compile(node ast.Node) error {
 			c.emit(code.OpGreaterThan)
 			return nil
 		}
+		if node.Operator == "&&" {
+			err := c.Compile(node.Left)
+			if err != nil {
+				return err
+			}
+			jumpPos := c.emit(code.OpJumpNotTruthy, 9999)
+			err = c.Compile(node.Right)
+			if err != nil {
+				return err
+			}
+			c.changeOperand(jumpPos, len(c.currentInstructions()))
+			return nil
+		}
+		if node.Operator == "||" {
+			err := c.Compile(node.Left)
+			if err != nil {
+				return err
+			}
+			jumpPos := c.emit(code.OpJumpTruthy, 9999)
+			err = c.Compile(node.Right)
+			if err != nil {
+				return err
+			}
+			c.changeOperand(jumpPos, len(c.currentInstructions()))
+			return nil
+		}
 
 		err := c.Compile(node.Left)
 		if err != nil {
@@ -213,12 +261,24 @@ func (c *Compiler) Compile(node ast.Node) error {
 			c.emit(code.OpMul)
 		case "/":
 			c.emit(code.OpDiv)
+		case "%":
+			c.emit(code.OpMod)
 		case ">":
 			c.emit(code.OpGreaterThan)
 		case "==":
 			c.emit(code.OpEqual)
 		case "!=":
 			c.emit(code.OpNotEqual)
+		case "&":
+			c.emit(code.OpBitAnd)
+		case "|":
+			c.emit(code.OpBitOr)
+		case "^":
+			c.emit(code.OpBitXor)
+		case "<<":
+			c.emit(code.OpLshift)
+		case ">>":
+			c.emit(code.OpRshift)
 		default:
 			return fmt.Errorf("unknown operator %s", node.Operator)
 		}
@@ -233,8 +293,41 @@ func (c *Compiler) Compile(node ast.Node) error {
 			c.emit(code.OpBang)
 		case "-":
 			c.emit(code.OpMinus)
+		case "~":
+			c.emit(code.OpBitNot)
 		default:
 			return fmt.Errorf("unknown prefix operator %s", node.Operator)
+		}
+
+	case *ast.PostfixExpression:
+		ident, ok := node.Left.(*ast.Identifier)
+		if !ok {
+			return fmt.Errorf("++ and -- require a variable (identifier)")
+		}
+		symbol, ok := c.symbolTable.Resolve(ident.Value)
+		if !ok {
+			return fmt.Errorf("undefined variable %s", ident.Value)
+		}
+		if symbol.IsConst {
+			return fmt.Errorf("cannot modify constant %s", ident.Value)
+		}
+		c.loadSymbol(symbol)
+		c.emit(code.OpDup)
+		c.emit(code.OpConstant, c.addConstant(&object.Integer{Value: 1}))
+		if node.Operator == "++" {
+			c.emit(code.OpAdd)
+		} else {
+			c.emit(code.OpSub)
+		}
+		switch symbol.Scope {
+		case GlobalScope:
+			c.emit(code.OpSetGlobal, symbol.Index)
+		case LocalScope:
+			c.emit(code.OpSetLocal, symbol.Index)
+		case FreeScope:
+			c.emit(code.OpSetFree, symbol.Index)
+		default:
+			return fmt.Errorf("cannot assign to %s", ident.Value)
 		}
 
 	case *ast.IntegerLiteral:
@@ -376,6 +469,36 @@ func (c *Compiler) Compile(node ast.Node) error {
 
 		c.emit(code.OpCall, len(node.Arguments))
 
+	case *ast.TryExpression:
+		catchEmitPos := c.emit(code.OpCatch, 9999)
+		err := c.compileBlockPreservingLast(node.Block)
+		if err != nil {
+			return err
+		}
+		c.emit(code.OpEndCatch)
+		jumpOverPos := c.emit(code.OpJump, 9999)
+		catchProloguePos := len(c.currentInstructions())
+		if node.CatchParameter != nil {
+			c.enterScope()
+			paramSym := c.symbolTable.Define(node.CatchParameter.Value)
+			c.emit(code.OpSetLocal, paramSym.Index)
+		} else {
+			c.emit(code.OpPop)
+		}
+		err = c.compileBlockPreservingLast(node.CatchBlock)
+		if err != nil {
+			if node.CatchParameter != nil {
+				c.leaveScope()
+			}
+			return err
+		}
+		if node.CatchParameter != nil {
+			c.leaveScope()
+		}
+		afterCatchPos := len(c.currentInstructions())
+		c.changeOperand(catchEmitPos, catchProloguePos)
+		c.changeOperand(jumpOverPos, afterCatchPos)
+
 	case *ast.IfStatement:
 		err := c.Compile(node.Condition)
 		if err != nil {
@@ -409,9 +532,11 @@ func (c *Compiler) Compile(node ast.Node) error {
 
 	case *ast.WhileStatement:
 		beforeLoopPos := len(c.currentInstructions())
+		c.loopStack = append(c.loopStack, loopContext{startPos: beforeLoopPos})
 
 		err := c.Compile(node.Condition)
 		if err != nil {
+			c.loopStack = c.loopStack[:len(c.loopStack)-1]
 			return err
 		}
 
@@ -419,6 +544,7 @@ func (c *Compiler) Compile(node ast.Node) error {
 
 		err = c.Compile(node.Body)
 		if err != nil {
+			c.loopStack = c.loopStack[:len(c.loopStack)-1]
 			return err
 		}
 
@@ -426,6 +552,109 @@ func (c *Compiler) Compile(node ast.Node) error {
 
 		afterBodyPos := len(c.currentInstructions())
 		c.changeOperand(jumpNotTruthyPos, afterBodyPos)
+		c.patchLoopExits(afterBodyPos)
+		c.loopStack = c.loopStack[:len(c.loopStack)-1]
+
+	case *ast.ForStatement:
+		if node.Init != nil {
+			err := c.Compile(node.Init)
+			if err != nil {
+				return err
+			}
+		}
+		beforeCondPos := len(c.currentInstructions())
+		c.loopStack = append(c.loopStack, loopContext{startPos: beforeCondPos})
+
+		err := c.Compile(node.Condition)
+		if err != nil {
+			c.loopStack = c.loopStack[:len(c.loopStack)-1]
+			return err
+		}
+		jumpNotTruthyPos := c.emit(code.OpJumpNotTruthy, 9999)
+
+		err = c.Compile(node.Body)
+		if err != nil {
+			c.loopStack = c.loopStack[:len(c.loopStack)-1]
+			return err
+		}
+		if node.Update != nil {
+			err = c.Compile(node.Update)
+			if err != nil {
+				c.loopStack = c.loopStack[:len(c.loopStack)-1]
+				return err
+			}
+		}
+		c.emit(code.OpJump, beforeCondPos)
+		afterBodyPos := len(c.currentInstructions())
+		c.changeOperand(jumpNotTruthyPos, afterBodyPos)
+		c.patchLoopExits(afterBodyPos)
+		c.loopStack = c.loopStack[:len(c.loopStack)-1]
+
+	case *ast.ForInStatement:
+		c.enterScope()
+		err := c.Compile(node.Iterable)
+		if err != nil {
+			c.leaveScope()
+			return err
+		}
+		iterSym := c.symbolTable.Define("__for_iter")
+		c.emit(code.OpSetLocal, iterSym.Index)
+		idxSym := c.symbolTable.Define("__for_idx")
+		c.symbolTable.Define(node.Variable.Value)
+		c.emit(code.OpConstant, c.addConstant(&object.Integer{Value: 0}))
+		c.emit(code.OpSetLocal, idxSym.Index)
+
+		beforeLoopPos := len(c.currentInstructions())
+		c.loopStack = append(c.loopStack, loopContext{startPos: beforeLoopPos})
+
+		// condition: __for_idx < __for_iter.len()
+		c.emit(code.OpGetLocal, iterSym.Index)
+		c.emit(code.OpMember, c.addConstant(&object.String{Value: "len"}))
+		c.emit(code.OpCall, 0)
+		c.emit(code.OpGetLocal, idxSym.Index)
+		c.emit(code.OpGreaterThan) // length > index  =>  index < length
+		jumpNotTruthyPos := c.emit(code.OpJumpNotTruthy, 9999)
+
+		// loop var = iterable[index]
+		c.emit(code.OpGetLocal, iterSym.Index)
+		c.emit(code.OpGetLocal, idxSym.Index)
+		c.emit(code.OpIndex)
+		loopVarSym, _ := c.symbolTable.Resolve(node.Variable.Value)
+		c.emit(code.OpSetLocal, loopVarSym.Index)
+
+		err = c.Compile(node.Body)
+		if err != nil {
+			c.loopStack = c.loopStack[:len(c.loopStack)-1]
+			c.leaveScope()
+			return err
+		}
+
+		// index++
+		c.emit(code.OpGetLocal, idxSym.Index)
+		c.emit(code.OpConstant, c.addConstant(&object.Integer{Value: 1}))
+		c.emit(code.OpAdd)
+		c.emit(code.OpSetLocal, idxSym.Index)
+
+		c.emit(code.OpJump, beforeLoopPos)
+		afterBodyPos := len(c.currentInstructions())
+		c.changeOperand(jumpNotTruthyPos, afterBodyPos)
+		c.patchLoopExits(afterBodyPos)
+		c.loopStack = c.loopStack[:len(c.loopStack)-1]
+		c.leaveScope()
+
+	case *ast.BreakStatement:
+		if len(c.loopStack) == 0 {
+			return fmt.Errorf("break outside of loop")
+		}
+		pos := c.emit(code.OpJump, 9999)
+		c.loopStack[len(c.loopStack)-1].breakPatches = append(c.loopStack[len(c.loopStack)-1].breakPatches, pos)
+
+	case *ast.ContinueStatement:
+		if len(c.loopStack) == 0 {
+			return fmt.Errorf("continue outside of loop")
+		}
+		pos := c.emit(code.OpJump, 9999)
+		c.loopStack[len(c.loopStack)-1].continuePatches = append(c.loopStack[len(c.loopStack)-1].continuePatches, pos)
 
 	case *ast.BlockStatement:
 		for _, s := range node.Statements {
@@ -485,5 +714,35 @@ func (c *Compiler) changeOperand(opPos int, operand int) {
 
 	for i := 0; i < len(newInstruction); i++ {
 		c.scopes[c.scopeIndex].instructions[opPos+i] = newInstruction[i]
+	}
+}
+
+// compileBlockPreservingLast compiles a block; if the last statement is an expression, its value is left on stack.
+func (c *Compiler) compileBlockPreservingLast(block *ast.BlockStatement) error {
+	stmts := block.Statements
+	for i, stmt := range stmts {
+		isLast := i == len(stmts)-1
+		if isLast {
+			if es, ok := stmt.(*ast.ExpressionStatement); ok {
+				return c.Compile(es.Expression)
+			}
+		}
+		if err := c.Compile(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Compiler) patchLoopExits(afterPos int) {
+	if len(c.loopStack) == 0 {
+		return
+	}
+	ctx := &c.loopStack[len(c.loopStack)-1]
+	for _, pos := range ctx.breakPatches {
+		c.changeOperand(pos, afterPos)
+	}
+	for _, pos := range ctx.continuePatches {
+		c.changeOperand(pos, ctx.startPos)
 	}
 }

@@ -43,6 +43,11 @@ var precedences = map[token.TokenType]int{
 	token.PIPE:     PIPE,
 	token.INC:      SUM,
 	token.DEC:      SUM,
+	token.BITAND:   PRODUCT,
+	token.BITOR:    PRODUCT,
+	token.BITXOR:   PRODUCT,
+	token.LSHIFT:   PRODUCT,
+	token.RSHIFT:   PRODUCT,
 }
 
 type (
@@ -79,6 +84,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.FALSE, p.parseBoolean)
 	p.registerPrefix(token.BANG, p.parsePrefixExpression)
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
+	p.registerPrefix(token.BITNOT, p.parsePrefixExpression)
 	p.registerPrefix(token.MATCH, p.parseMatchExpression)
 	p.registerPrefix(token.TRY, p.parseTryExpression)
 
@@ -100,6 +106,11 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.DOT, p.parseMemberExpression)
 	p.registerInfix(token.INC, p.parsePostfixExpression)
 	p.registerInfix(token.DEC, p.parsePostfixExpression)
+	p.registerInfix(token.BITAND, p.parseInfixExpression)
+	p.registerInfix(token.BITOR, p.parseInfixExpression)
+	p.registerInfix(token.BITXOR, p.parseInfixExpression)
+	p.registerInfix(token.LSHIFT, p.parseInfixExpression)
+	p.registerInfix(token.RSHIFT, p.parseInfixExpression)
 
 	p.nextToken()
 	p.nextToken()
@@ -165,6 +176,10 @@ func (p *Parser) parseStatement() ast.Statement {
 		return p.parseImportStatement()
 	case token.THROW:
 		return p.parseThrowStatement()
+	case token.BREAK:
+		return p.parseBreakStatement()
+	case token.CONTINUE:
+		return p.parseContinueStatement()
 	case token.IDENT:
 		if p.peekToken.Type == token.ASSIGN {
 			return p.parseAssignStatement()
@@ -180,11 +195,15 @@ func (p *Parser) parseStatement() ast.Statement {
 
 func (p *Parser) parseSetStatement() *ast.SetStatement {
 	stmt := &ast.SetStatement{Token: p.curToken}
-	if p.peekToken.Type != token.IDENT {
-		p.Errors = append(p.Errors, fmt.Sprintf("Line %d, Col %d: expected identifiers", p.peekToken.Line, p.peekToken.Col))
+	p.nextToken() // past set
+	if p.curToken.Type == token.CONST {
+		stmt.IsConst = true
+		p.nextToken()
+	}
+	if p.curToken.Type != token.IDENT {
+		p.Errors = append(p.Errors, fmt.Sprintf("Line %d, Col %d: expected identifier", p.curToken.Line, p.curToken.Col))
 		return nil
 	}
-	p.nextToken()
 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 	if p.peekToken.Type != token.ASSIGN {
@@ -221,6 +240,24 @@ func (p *Parser) parseThrowStatement() *ast.ThrowStatement {
 	stmt := &ast.ThrowStatement{Token: p.curToken}
 	p.nextToken()
 	stmt.Value = p.parseExpression(LOWEST)
+	if p.peekToken.Type == token.SEMICOLON {
+		p.nextToken()
+	}
+	return stmt
+}
+
+func (p *Parser) parseBreakStatement() *ast.BreakStatement {
+	stmt := &ast.BreakStatement{Token: p.curToken}
+	p.nextToken()
+	if p.peekToken.Type == token.SEMICOLON {
+		p.nextToken()
+	}
+	return stmt
+}
+
+func (p *Parser) parseContinueStatement() *ast.ContinueStatement {
+	stmt := &ast.ContinueStatement{Token: p.curToken}
+	p.nextToken()
 	if p.peekToken.Type == token.SEMICOLON {
 		p.nextToken()
 	}
@@ -273,10 +310,6 @@ func (p *Parser) parseIfStatement() *ast.IfStatement {
 	p.nextToken() // past if
 
 	stmt.Condition = p.parseExpression(LOWEST)
-
-	if p.peekToken.Type == token.THEN {
-		p.nextToken()
-	}
 
 	if p.peekToken.Type == token.LBRACE {
 		p.nextToken()
@@ -616,13 +649,31 @@ func (p *Parser) parsePipeExpression(left ast.Expression) ast.Expression {
 }
 
 func (p *Parser) parseForStatement() ast.Statement {
-	stmt := &ast.ForStatement{Token: p.curToken}
+	tok := p.curToken
+	p.nextToken() // past for
 
-	if p.peekToken.Type != token.LPAREN {
-		p.Errors = append(p.Errors, fmt.Sprintf("expected ( after for, got %s", p.peekToken.Type))
+	// for x in expr { ... }
+	if p.curToken.Type == token.IDENT && p.peekToken.Type == token.IN {
+		stmt := &ast.ForInStatement{Token: tok, Variable: &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}}
+		p.nextToken() // past ident
+		p.nextToken() // past in
+		stmt.Iterable = p.parseExpression(LOWEST)
+		if p.peekToken.Type != token.LBRACE {
+			p.Errors = append(p.Errors, fmt.Sprintf("expected { for for-in body, got %s", p.peekToken.Type))
+			return nil
+		}
+		p.nextToken()
+		stmt.Body = p.parseBlockStatement()
+		return stmt
+	}
+
+	// C-style for ( init ; condition ; update ) { ... }
+	stmt := &ast.ForStatement{Token: tok}
+
+	if p.curToken.Type != token.LPAREN {
+		p.Errors = append(p.Errors, fmt.Sprintf("expected ( after for, got %s", p.curToken.Type))
 		return nil
 	}
-	p.nextToken() // past for
 	p.nextToken() // past (
 
 	stmt.Init = p.parseStatement()

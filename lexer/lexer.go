@@ -86,16 +86,40 @@ func (l *Lexer) NextToken() token.Token {
 			}
 			return l.NextToken()
 		}
+		if l.peekChar() == '*' {
+			l.readChar() // consume /
+			l.readChar() // consume *
+			for {
+				if l.ch == 0 {
+					tok = token.Token{Type: token.ILLEGAL, Literal: "unclosed block comment"}
+					tok.Line, tok.Col = line, col
+					l.readChar()
+					return tok
+				}
+				if l.ch == '*' && l.peekChar() == '/' {
+					l.readChar()
+					l.readChar()
+					return l.NextToken()
+				}
+				l.readChar()
+			}
+		}
 		tok = token.Token{Type: token.SLASH, Literal: string(l.ch)}
 	case '%':
 		tok = token.Token{Type: token.MOD, Literal: string(l.ch)}
 	case '<':
-		tok = token.Token{Type: token.LT, Literal: string(l.ch)}
+		if l.peekChar() == '<' {
+			ch := l.ch
+			l.readChar()
+			tok = token.Token{Type: token.LSHIFT, Literal: string(ch) + string(l.ch)}
+		} else {
+			tok = token.Token{Type: token.LT, Literal: string(l.ch)}
+		}
 	case '>':
 		if l.peekChar() == '>' {
 			ch := l.ch
 			l.readChar()
-			tok = token.Token{Type: token.PIPE, Literal: string(ch) + string(l.ch)}
+			tok = token.Token{Type: token.RSHIFT, Literal: string(ch) + string(l.ch)}
 		} else {
 			tok = token.Token{Type: token.GT, Literal: string(l.ch)}
 		}
@@ -113,16 +137,24 @@ func (l *Lexer) NextToken() token.Token {
 			l.readChar()
 			tok = token.Token{Type: token.AND, Literal: string(ch) + string(l.ch)}
 		} else {
-			tok = token.Token{Type: token.ILLEGAL, Literal: string(l.ch)}
+			tok = token.Token{Type: token.BITAND, Literal: string(l.ch)}
 		}
 	case '|':
-		if l.peekChar() == '|' {
+		if l.peekChar() == '>' {
+			ch := l.ch
+			l.readChar()
+			tok = token.Token{Type: token.PIPE, Literal: string(ch) + string(l.ch)}
+		} else if l.peekChar() == '|' {
 			ch := l.ch
 			l.readChar()
 			tok = token.Token{Type: token.OR, Literal: string(ch) + string(l.ch)}
 		} else {
-			tok = token.Token{Type: token.ILLEGAL, Literal: string(l.ch)}
+			tok = token.Token{Type: token.BITOR, Literal: string(l.ch)}
 		}
+	case '^':
+		tok = token.Token{Type: token.BITXOR, Literal: string(l.ch)}
+	case '~':
+		tok = token.Token{Type: token.BITNOT, Literal: string(l.ch)}
 	case ';':
 		tok = token.Token{Type: token.SEMICOLON, Literal: string(l.ch)}
 	case ':':
@@ -205,9 +237,25 @@ func (l *Lexer) readNumber() (string, token.TokenType) {
 }
 
 func (l *Lexer) skipWhitespace() {
-	for l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' || (l.ch == '/' && l.peekChar() == '/') {
+	for l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' || (l.ch == '/' && (l.peekChar() == '/' || l.peekChar() == '*')) {
 		if l.ch == '/' && l.peekChar() == '/' {
 			for l.ch != '\n' && l.ch != 0 {
+				l.readChar()
+			}
+			continue
+		}
+		if l.ch == '/' && l.peekChar() == '*' {
+			l.readChar()
+			l.readChar()
+			for {
+				if l.ch == 0 {
+					return
+				}
+				if l.ch == '*' && l.peekChar() == '/' {
+					l.readChar()
+					l.readChar()
+					break
+				}
 				l.readChar()
 			}
 			continue

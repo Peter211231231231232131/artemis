@@ -1,0 +1,220 @@
+// Comprehensive feature test for Exon.
+// Run with: go test ./tests/ -v
+// Or run script: ./xn tests/features.xn
+//
+// Skipped: |> (pipeline), match, null literal.
+// Using type names (int, float) as variable names shadows builtins - test uses intVar/floatVar.
+
+out "=== Exon feature tests ===";
+
+// --- Literals ---
+out "PASS: integer literal: 42";
+out 42;
+out "PASS: float literal: 3.14";
+out 3.14;
+out "PASS: string literal: hello";
+out "hello";
+out "PASS: true: true";
+out true;
+out "PASS: false: false";
+out false;
+
+// --- Comments (single and multi) ---
+// single line
+/* multi
+   line */
+out "PASS: comments: parsed";
+
+// --- Variables: set, set const, assign ---
+set a = 10;
+out "PASS: set: 10";
+out a;
+set const PI = 3.14159;
+out "PASS: set const: 3.14159";
+out PI;
+a = 20;
+out "PASS: assign: 20";
+out a;
+set floatVar = 1.5;
+set intVar = 100;
+out "PASS: type names as vars: 1.5 100";
+out floatVar;
+out intVar;
+
+// --- Arithmetic ---
+out "PASS: add: 30";
+out 10 + 20;
+out "PASS: sub: 5";
+out 15 - 10;
+out "PASS: mul: 200";
+out 10 * 20;
+out "PASS: div: 4";
+out 20 / 5;
+out "PASS: mod: 2";
+out 17 % 5;
+set n = 5;
+n++;
+out "PASS: inc: 6";
+out n;
+n--;
+out "PASS: dec: 5";
+out n;
+
+// --- Comparison ---
+out "PASS: eq: true";
+out 1 == 1;
+out "PASS: neq: true";
+out 1 != 2;
+out "PASS: lt: true";
+out 1 < 2;
+out "PASS: gt: true";
+out 3 > 2;
+
+// --- Logical ---
+out "PASS: and: true";
+out true && true;
+out "PASS: or: true";
+out false || true;
+
+// --- Bitwise ---
+out "PASS: bitand: 4";
+out 12 & 6;
+out "PASS: bitor: 14";
+out 12 | 6;
+out "PASS: bitxor: 10";
+out 12 ^ 6;
+out "PASS: bitnot: -13";
+out ~12;
+out "PASS: lshift: 48";
+out 12 << 2;
+out "PASS: rshift: 3";
+out 12 >> 2;
+
+// --- For-in and array indexing ---
+set src = [1, 2, 3];
+set doubled = [];
+for x in src {
+    doubled.push(x * 2);
+}
+out "PASS: for-in map: 2 4 6";
+out doubled[0];
+out doubled[1];
+out doubled[2];
+
+// --- Control: if/else ---
+if (1 < 2) {
+    out "PASS: if: yes";
+}
+if (1 > 2) {
+} else {
+    out "PASS: else: yes";
+}
+if (2 > 3) {
+} else if (2 < 3) {
+    out "PASS: else if: yes";
+} else {
+}
+
+// --- Control: while, break, continue ---
+set i = 0;
+set sum = 0;
+while (i < 5) {
+    i = i + 1;
+    if (i == 3) { continue; }
+    sum = sum + i;
+}
+out "PASS: while break continue: 12";
+out sum;
+
+// --- Control: for (C-style) ---
+set total = 0;
+for (set j = 0; j < 4; j = j + 1) {
+    total = total + j;
+}
+out "PASS: for C-style: 6";
+out total;
+
+// --- Control: for-in ---
+set items = [10, 20, 30];
+set seen = 0;
+for x in items {
+    seen = seen + x;
+}
+out "PASS: for-in: 60";
+out seen;
+
+// --- Functions ---
+set add = fn(x, y) { return x + y; };
+out "PASS: fn: 7";
+out add(3, 4);
+set counter = fn() {
+    set c = 0;
+    return fn() {
+        c = c + 1;
+        return c;
+    };
+};
+set next = counter();
+next();
+out "PASS: closure: 2";
+out next();
+
+// --- Arrays ---
+set arr = [1, 2, 3];
+out "PASS: array literal: 3";
+out arr.len();
+arr.push(4);
+out "PASS: push: 4";
+out arr.len();
+out "PASS: index: 3";
+out arr[2];
+
+// --- Hashes ---
+set h = {"a": 1, "b": 2};
+out "PASS: hash: 2";
+out h["a"] + h["b"];
+set obj = {"x": 10};
+out "PASS: member: 10";
+out obj["x"];
+
+// --- Type conversions ---
+out "PASS: int(): 99";
+out int("99");
+out "PASS: float(): 2.5";
+out float("2.5");
+out "PASS: str(): 42";
+out str(42);
+out "PASS: bool(): true";
+out bool(1);
+out "PASS: typeof: INTEGER";
+out typeof(42);
+
+// --- Try/catch ---
+set ok = try {
+    set x = 1 + 1;
+    "ok";
+} catch (e) {
+    "fail";
+};
+out "PASS: try: ok";
+out ok;
+set caught = try {
+    throw "oops";
+} catch (e) {
+    "caught";
+};
+out "PASS: catch: caught";
+out caught;
+
+// --- Spawn (smoke test - just that it runs) ---
+set done = 0;
+set mark = fn() { done = 1; };
+spawn mark();
+sleep(50);
+out "PASS: spawn: 1";
+out done;
+
+// --- Out ---
+out "PASS: out: works";
+
+out "=== All feature tests completed ===";

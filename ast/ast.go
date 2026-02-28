@@ -44,9 +44,10 @@ func (p *Program) String() string {
 // Statements
 
 type SetStatement struct {
-	Token token.Token
-	Name  *Identifier
-	Value Expression
+	Token   token.Token
+	IsConst bool
+	Name    *Identifier
+	Value   Expression
 }
 
 func (ss *SetStatement) statementNode()       {}
@@ -137,6 +138,33 @@ type ForStatement struct {
 func (fs *ForStatement) statementNode()       {}
 func (fs *ForStatement) TokenLiteral() string { return fs.Token.Literal }
 func (fs *ForStatement) String() string       { return "for" }
+
+type ForInStatement struct {
+	Token    token.Token
+	Variable *Identifier
+	Iterable Expression
+	Body     *BlockStatement
+}
+
+func (fs *ForInStatement) statementNode()       {}
+func (fs *ForInStatement) TokenLiteral() string { return fs.Token.Literal }
+func (fs *ForInStatement) String() string       { return "for ... in" }
+
+type BreakStatement struct {
+	Token token.Token
+}
+
+func (bs *BreakStatement) statementNode()       {}
+func (bs *BreakStatement) TokenLiteral() string { return bs.Token.Literal }
+func (bs *BreakStatement) String() string      { return "break" }
+
+type ContinueStatement struct {
+	Token token.Token
+}
+
+func (cs *ContinueStatement) statementNode()       {}
+func (cs *ContinueStatement) TokenLiteral() string { return cs.Token.Literal }
+func (cs *ContinueStatement) String() string      { return "continue" }
 
 type WhileStatement struct {
 	Token     token.Token
@@ -358,7 +386,7 @@ type PipeExpression struct {
 
 func (pe *PipeExpression) expressionNode()      {}
 func (pe *PipeExpression) TokenLiteral() string { return pe.Token.Literal }
-func (pe *PipeExpression) String() string       { return pe.Left.String() + " >> " + pe.Right.String() }
+func (pe *PipeExpression) String() string       { return pe.Left.String() + " |> " + pe.Right.String() }
 
 type MatchCase struct {
 	Pattern Expression

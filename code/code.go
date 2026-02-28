@@ -46,6 +46,18 @@ const (
 	OpGetFree
 	OpSetFree
 	OpImport
+	OpBitAnd
+	OpBitOr
+	OpBitXor
+	OpBitNot
+	OpLshift
+	OpRshift
+	OpMod
+	OpJumpTruthy
+	OpDup
+	OpCatch
+	OpThrow
+	OpEndCatch
 )
 
 type Definition struct {
@@ -89,6 +101,18 @@ var definitions = map[Opcode]*Definition{
 	OpGetFree:       {"OpGetFree", []int{1}},
 	OpSetFree:       {"OpSetFree", []int{1}},
 	OpImport:        {"OpImport", []int{}},
+	OpBitAnd:        {"OpBitAnd", []int{}},
+	OpBitOr:         {"OpBitOr", []int{}},
+	OpBitXor:        {"OpBitXor", []int{}},
+	OpBitNot:        {"OpBitNot", []int{}},
+	OpLshift:        {"OpLshift", []int{}},
+	OpRshift:        {"OpRshift", []int{}},
+	OpMod:           {"OpMod", []int{}},
+	OpJumpTruthy:    {"OpJumpTruthy", []int{2}},
+	OpDup:           {"OpDup", []int{}},
+	OpCatch:         {"OpCatch", []int{2}},
+	OpThrow:         {"OpThrow", []int{}},
+	OpEndCatch:      {"OpEndCatch", []int{}},
 }
 
 func Lookup(op byte) (*Definition, error) {

@@ -51,7 +51,7 @@ set server = {
     "serve": fn(port, handler) { return http_serve(port, handler); }
 };
 
-set str = {
+set string_utils = {
     "split": fn(s, sep) { return str_split(s, sep); },
     "contains": fn(s, sub) { return str_contains(s, sub); }
 };
@@ -87,7 +87,7 @@ set help = fn() {
     out "================================";
     out "std: map, filter, reduce, range";
     out "math: PI, E, abs, max, min, pow, random, sqrt";
-    out "str: split, contains";
+    out "string_utils: split, contains";
     out "time: now, sleep";
     out "fs: read, write, remove, exists";
     out "os: move_mouse, click, key_tap, exec, pos, alert";
@@ -95,7 +95,7 @@ set help = fn() {
     out "server: serve";
     out "json: json_encode, json_decode";
     out "concurrency: spawn";
-    out "operators: >> (pipeline), ++, --";
+    out "operators: |> (pipeline), >> (right shift), ++, --";
     out "error handling: try, catch, throw";
     out "keywords: set, =, match, for, while, if, out, spawn, try";
     out "global: input, int, str, copy, paste, type";
