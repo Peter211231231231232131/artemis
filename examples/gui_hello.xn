@@ -1,0 +1,14 @@
+// GUI Maker Example - written in Xon
+// Run: xon examples/gui_hello.xn
+// Native Windows GUI (Windigo).
+
+out "Opening GUI...";
+gui.runWindow("Hello from Xon!", 400, 200, [
+    gui.label("Enter your name:"),
+    gui.input("nameInput", ""),
+    gui.button("Say Hello", fn() {
+        set name = gui.get("nameInput");
+        if (len(name) == 0) { name = "World"; }
+        return "Hello, " + name + "!";
+    })
+]);

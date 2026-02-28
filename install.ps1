@@ -1,16 +1,15 @@
-# Exon (xn) Language - Installer
+# Xon - Official Installer
 # Run with: powershell -ExecutionPolicy Bypass -File install.ps1
 # Or: .\install.ps1
 
 param(
-    [string]$InstallDir = "$env:LOCALAPPDATA\Exon",
+    [string]$InstallDir = "$env:LOCALAPPDATA\Xon",
     [switch]$Uninstall,
     [switch]$Force
 )
 
 $ErrorActionPreference = "Stop"
-$ExeName = "xn.exe"
-$PathName = "Exon"
+$ExeName = "xon.exe"
 
 function Get-ScriptDir {
     if ($PSCommandPath) {
@@ -20,11 +19,11 @@ function Get-ScriptDir {
     }
 }
 
-function Install-Exon {
+function Install-Xon {
     $root = Get-ScriptDir
     
-    Write-Host "Exon Installer" -ForegroundColor Cyan
-    Write-Host "==============" -ForegroundColor Cyan
+    Write-Host "Xon Official Installer" -ForegroundColor Cyan
+    Write-Host "======================" -ForegroundColor Cyan
     
     if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
         Write-Error "Go is not installed or not in PATH. Install Go from https://go.dev/dl/"
@@ -65,14 +64,14 @@ function Install-Exon {
     }
     
     Write-Host ""
-    Write-Host "Installation complete. Run 'xn' from a new terminal, or run:" -ForegroundColor Green
-    Write-Host "  xn" -ForegroundColor White
-    Write-Host "  xn script.xn" -ForegroundColor White
+    Write-Host "Installation complete. Run 'xon' from a new terminal, or run:" -ForegroundColor Green
+    Write-Host "  xon" -ForegroundColor White
+    Write-Host "  xon script.xn" -ForegroundColor White
 }
 
-function Uninstall-Exon {
-    Write-Host "Exon Uninstaller" -ForegroundColor Cyan
-    Write-Host "================" -ForegroundColor Cyan
+function Uninstall-Xon {
+    Write-Host "Xon Uninstaller" -ForegroundColor Cyan
+    Write-Host "===============" -ForegroundColor Cyan
     
     $targetDir = $InstallDir
     $targetDirNorm = if (Test-Path $targetDir) { (Resolve-Path $targetDir).Path } else { $targetDir }
@@ -93,7 +92,7 @@ function Uninstall-Exon {
 }
 
 if ($Uninstall) {
-    Uninstall-Exon
+    Uninstall-Xon
 } else {
-    Install-Exon
+    Install-Xon
 }

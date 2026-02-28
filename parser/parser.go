@@ -1,9 +1,9 @@
 package parser
 
 import (
-	"exon/ast"
-	"exon/lexer"
-	"exon/token"
+	"xon/ast"
+	"xon/lexer"
+	"xon/token"
 	"fmt"
 	"strconv"
 	"strings"

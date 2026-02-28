@@ -1,13 +1,13 @@
 package main
 
 import (
-	"exon/builtins"
-	"exon/compiler"
-	"exon/lexer"
-	"exon/object"
-	"exon/parser"
-	"exon/repl"
-	"exon/vm"
+	"xon/builtins"
+	"xon/compiler"
+	"xon/lexer"
+	"xon/object"
+	"xon/parser"
+	"xon/repl"
+	"xon/vm"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -40,7 +40,7 @@ func main() {
 		source = EmbeddedScript
 		scriptName = "embedded"
 	} else if len(args) < 1 {
-		fmt.Println("Exon Language REPL")
+		fmt.Println("Xon REPL")
 		fmt.Println("Type your code below. Press Ctrl+C to exit.")
 		repl.Start(os.Stdin, os.Stdout)
 		return
@@ -118,7 +118,7 @@ func main() {
 	}
 
 	if disassemble {
-		fmt.Printf("Engine: Exon VM Disassembler\n")
+		fmt.Printf("Engine: Xon VM Disassembler\n")
 		fmt.Printf("Constants:\n")
 		for i, constant := range comp.Bytecode().Constants {
 			fmt.Printf("  %d: %s\n", i, constant.Inspect())

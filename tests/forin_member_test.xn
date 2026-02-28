@@ -1,0 +1,9 @@
+out "=== for-in member test ===";
+set cfg = {"children": [1, 2, 3]};
+set sum = 0;
+for x in cfg.children {
+    sum = sum + x;
+}
+out "sum=" + str(sum);
+out "=== done ===";
+

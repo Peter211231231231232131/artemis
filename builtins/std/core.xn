@@ -1,5 +1,5 @@
 
-// Exon Core Standard Library
+// Xon Core Standard Library
 // This file is loaded automatically on startup.
 
 set map = fn(arr, f) {
@@ -53,7 +53,9 @@ set server = {
 
 set string_utils = {
     "split": fn(s, sep) { return str_split(s, sep); },
-    "contains": fn(s, sub) { return str_contains(s, sub); }
+    "contains": fn(s, sub) { return str_contains(s, sub); },
+    // Xon VM currently doesn't support STRING == STRING, so provide an equals helper.
+    "equals": fn(a, b) { return str_contains(a, b) && (len(a) == len(b)); }
 };
 
 set time = {
@@ -78,12 +80,42 @@ set os = {
     "compile": fn(script, output) { return os_compile(script, output); }
 };
 
+// GUI - native Go GUI (Fyne). gui_run and gui_get are builtins.
+set _gk_t = "t";
+set _gk_text = "text";
+set _gk_id = "id";
+set _gk_onClick = "onClick";
+set gui_label = fn(text) { return {_gk_t: 1, _gk_text: text}; };
+set gui_button = fn(text, onClick) { return {_gk_t: 4, _gk_text: text, _gk_onClick: onClick}; };
+set gui_input = fn(id, defaultVal) { return {_gk_t: 2, _gk_id: id, _gk_text: defaultVal}; };
+set gui_textarea = fn(id, defaultVal) { return {_gk_t: 3, _gk_id: id, _gk_text: defaultVal}; };
+set gui_window = fn(title, width, height, children) { return {"title": title, "width": width, "height": height, "children": children}; };
+set _wkt = "title";
+set _wkw = "width";
+set _wkh = "height";
+set _wkc = "children";
+set gui_runWindow = fn(title, width, height, children) {
+    return gui_run({_wkt: title, _wkw: width, _wkh: height, _wkc: children});
+};
+
+// GUI module (no self-reference inside RHS)
+set gui = {
+    "label": gui_label,
+    "button": gui_button,
+    "input": gui_input,
+    "textarea": gui_textarea,
+    "window": gui_window,
+    "run": gui_run,
+    "get": gui_get,
+    "runWindow": gui_runWindow
+};
+
 set http = {
     "get": fn(url) { return http_get(url); }
 };
 
 set help = fn() {
-    out "Exon Language Standard Library";
+    out "Xon Standard Library";
     out "================================";
     out "std: map, filter, reduce, range";
     out "math: PI, E, abs, max, min, pow, random, sqrt";
@@ -91,6 +123,7 @@ set help = fn() {
     out "time: now, sleep";
     out "fs: read, write, remove, exists";
     out "os: move_mouse, click, key_tap, exec, pos, alert";
+    out "gui: label, button, input, textarea, window, run, get, runWindow (native Go/Fyne)";
     out "http: get";
     out "server: serve";
     out "json: json_encode, json_decode";

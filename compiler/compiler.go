@@ -1,10 +1,10 @@
 package compiler
 
 import (
-	"exon/ast"
-	"exon/builtins"
-	"exon/code"
-	"exon/object"
+	"xon/ast"
+	"xon/builtins"
+	"xon/code"
+	"xon/object"
 	"fmt"
 	"strings"
 )

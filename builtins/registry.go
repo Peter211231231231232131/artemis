@@ -1,6 +1,6 @@
 package builtins
 
-import "exon/object"
+import "xon/object"
 
 // BuiltinNames returns all builtin function names in a stable order.
 var BuiltinNames = []string{
@@ -17,6 +17,7 @@ var BuiltinNames = []string{
 	"http_get", "http_serve",
 	"input", "int", "float", "str", "bool", "typeof",
 	"copy", "paste",
+	"gui_run", "gui_get",
 }
 
 // GetBuiltinByName returns a builtin function by name.

@@ -8,4 +8,6 @@
 # Project specific
 test_*.xn
 temp.txt
-exon.exe
+xon.exe
+test-output.xn
+.xon_gui_*/

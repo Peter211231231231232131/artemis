@@ -3,7 +3,7 @@
 import "math_utils" as math_u;
 import "string_utils" as str_u;
 
-out "=== Exon Module System Demo ===";
+out "=== Xon Module System Demo ===";
 out "";
 
 // Using math_utils

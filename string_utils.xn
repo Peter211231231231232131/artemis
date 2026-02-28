@@ -11,7 +11,7 @@ set repeat = fn(s, n) {
 };
 
 set greet = fn(name) {
-    return "Hello, " + name + "! Welcome to Exon.";
+    return "Hello, " + name + "! Welcome to Xon.";
 };
 
 set to_upper_first = fn(s) {

@@ -1,0 +1,6 @@
+out "=== gui children member test ===";
+set cfg = {"children": [gui.label("a"), gui.input("id","")]};
+out "len(cfg.children)=" + str(len(cfg.children));
+out "first.type=" + cfg.children[0].type;
+out "=== done ===";
+

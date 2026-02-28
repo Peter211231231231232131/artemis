@@ -1,0 +1,6 @@
+// Quick GUI module test - builds config without opening window
+set c = gui.window("Test", 100, 100, [gui.label("Hi"), gui.input("x", "default")]);
+out "GUI config: title=" + c.title + " width=" + c.width + " children=" + str(len(c.children));
+set btn = gui.button("Click", fn() { out "clicked"; });
+out "Button type=" + btn.type + " text=" + btn.text;
+out "PASS: gui module (Xon builders)";

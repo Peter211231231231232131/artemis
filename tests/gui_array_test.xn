@@ -1,0 +1,11 @@
+out "=== gui array test ===";
+set x = [1, 2, 3];
+out "len(x)=" + str(len(x));
+
+set y = [gui.label("a"), gui.input("id", ""), gui.button("b", fn(){ return "ok"; })];
+out "len(y)=" + str(len(y));
+out "type(y[0])=" + typeof(y[0]);
+out "y0.t=" + str(y[0].t);
+
+out "=== done ===";
+

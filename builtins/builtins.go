@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"embed"
 	"encoding/json"
-	"exon/object"
+	"xon/object"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -41,7 +41,7 @@ var embeddedStd embed.FS
 
 const StdBltinsFallback = `
 set help = fn() {
-    out "Exon Language - Core Primitives Only";
+    out "Xon Language - Core Primitives Only";
     out "Standard library (std/core.xn) not found.";
 };
 `
@@ -177,7 +177,7 @@ var builtinsMap = map[string]*object.Builtin{
 			}
 
 			addr := ":" + fmt.Sprint(port.Value)
-			fmt.Printf("Exon Server starting on %s...\n", addr)
+			fmt.Printf("Xon Server starting on %s...\n", addr)
 
 			server := &http.Server{Addr: addr}
 			http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

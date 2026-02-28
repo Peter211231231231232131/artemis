@@ -2,17 +2,17 @@ package repl
 
 import (
 	"bufio"
-	"exon/compiler"
-	"exon/lexer"
-	"exon/object"
-	"exon/parser"
-	"exon/vm"
+	"xon/compiler"
+	"xon/lexer"
+	"xon/object"
+	"xon/parser"
+	"xon/vm"
 	"fmt"
 	"io"
 	"sync"
 )
 
-const PROMPT = "exon>> "
+const PROMPT = "xon>> "
 
 func Start(in io.Reader, out io.Writer) {
 	scanner := bufio.NewScanner(in)

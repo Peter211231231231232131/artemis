@@ -2,12 +2,12 @@ package tests
 
 import (
 	"bytes"
-	"exon/builtins"
-	"exon/compiler"
-	"exon/lexer"
-	"exon/object"
-	"exon/parser"
-	"exon/vm"
+	"xon/builtins"
+	"xon/compiler"
+	"xon/lexer"
+	"xon/object"
+	"xon/parser"
+	"xon/vm"
 	"io"
 	"os"
 	"path/filepath"
@@ -16,7 +16,7 @@ import (
 	"testing"
 )
 
-// runSource runs Exon source (stdlib will be prepended) and returns stdout and any error.
+// runSource runs Xon source (stdlib will be prepended) and returns stdout and any error.
 func runSource(source string) (stdout string, runErr error) {
 	stdContent, err := builtins.LoadStdLib()
 	if err != nil {

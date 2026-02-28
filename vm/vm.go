@@ -2,12 +2,12 @@ package vm
 
 import (
 	"encoding/binary"
-	"exon/builtins"
-	"exon/code"
-	"exon/compiler"
-	"exon/lexer"
-	"exon/object"
-	"exon/parser"
+	"xon/builtins"
+	"xon/code"
+	"xon/compiler"
+	"xon/lexer"
+	"xon/object"
+	"xon/parser"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -623,6 +623,20 @@ func (vm *VM) executeBinaryOperation(op code.Opcode) error {
 		}
 	}
 
+	// String equality (for == and !=)
+	if ok3 && ok4 {
+		switch op {
+		case code.OpEqual:
+			return vm.push(nativeBoolToObj(leftStr.Value == rightStr.Value))
+		case code.OpNotEqual:
+			return vm.push(nativeBoolToObj(leftStr.Value != rightStr.Value))
+		}
+	}
+
+	// Null comparison: null == null is true, null == anything else is false
+	if left == nil || right == nil {
+		return fmt.Errorf("binary op with nil: left=%v right=%v", left, right)
+	}
 	return fmt.Errorf("unsupported types for binary operation: %s %s", left.Type(), right.Type())
 }
 

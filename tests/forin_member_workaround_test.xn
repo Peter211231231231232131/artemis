@@ -1,0 +1,12 @@
+out "=== for-in member workaround test ===";
+set cfg = {"children": [1, 2, 3]};
+set raw = cfg.children;
+out "typeof(raw)=" + typeof(raw);
+out "len(raw)=" + str(len(raw));
+set sum = 0;
+for x in raw {
+    sum = sum + x;
+}
+out "sum=" + str(sum);
+out "=== done ===";
+

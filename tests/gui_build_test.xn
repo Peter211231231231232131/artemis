@@ -1,0 +1,10 @@
+out "=== GUI build test ===";
+set arr = [
+    gui.label("a"),
+    gui.input("id", ""),
+    gui.button("b", fn() { return "x"; })
+];
+out "len=" + str(len(arr));
+out json_encode(arr);
+out "=== done ===";
+

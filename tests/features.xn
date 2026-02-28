@@ -1,11 +1,11 @@
-// Comprehensive feature test for Exon.
+// Comprehensive feature test for Xon.
 // Run with: go test ./tests/ -v
 // Or run script: ./xn tests/features.xn
 //
 // Skipped: |> (pipeline), match, null literal.
 // Using type names (int, float) as variable names shadows builtins - test uses intVar/floatVar.
 
-out "=== Exon feature tests ===";
+out "=== Xon feature tests ===";
 
 // --- Literals ---
 out "PASS: integer literal: 42";

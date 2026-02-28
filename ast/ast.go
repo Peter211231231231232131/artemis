@@ -2,7 +2,7 @@ package ast
 
 import (
 	"bytes"
-	"exon/token"
+	"xon/token"
 	"strings"
 )
 
